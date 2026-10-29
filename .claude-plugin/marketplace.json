@@ -1,0 +1,7 @@
+{
+  "name": "howard-mods",
+  "owner": { "name": "Howard Chen" },
+  "plugins": [
+    { "name": "session-desk", "source": "./session-desk", "description": "Session 總管：本機 Claude Code session 與指派給我的 Notion 卡" }
+  ]
+}

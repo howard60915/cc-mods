@@ -1,0 +1,3 @@
+# 引擎每次載入 mod 都會重鋪的型別檔
+*/.claude-plugin/types/
+.DS_Store

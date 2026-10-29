@@ -1,0 +1,59 @@
+{
+  "name": "session-desk",
+  "version": "0.2.0",
+  "description": "Session 總管：本機 Claude Code session（busy／idle／waiting）與指派給我的 Notion Sprint Board 卡，一個 pane 看完、跳轉、綁定、改狀態",
+  "author": {
+    "name": "Howard Chen"
+  },
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "theme": {
+      "type": "string",
+      "title": "配色",
+      "description": "Claude Code：跟著 Claude Code 的亮／暗主題；終端機：用 iTerm2 profile 的 ANSI 色；其餘為內建色碼",
+      "default": "Claude Code",
+      "options": [
+        "Claude Code",
+        "終端機",
+        "Catppuccin Mocha",
+        "Catppuccin Latte",
+        "Tokyo Night",
+        "Dracula",
+        "Gruvbox Dark",
+        "Nord",
+        "One Dark",
+        "Rosé Pine",
+        "Solarized Dark",
+        "Solarized Light",
+        "Everforest Dark",
+        "Kanagawa",
+        "GitHub Dark",
+        "Monokai",
+        "Cyberpunk Neon"
+      ]
+    },
+    "autoOpen": {
+      "type": "string",
+      "title": "啟動時自動開 pane",
+      "description": "on：每個 session 啟動就開；off：只在打 /desk 時開",
+      "default": "on",
+      "options": [
+        "on",
+        "off"
+      ]
+    },
+    "viewUrl": {
+      "type": "string",
+      "title": "Notion view 連結",
+      "description": "Sprint Board 上「指派給我、未結案」的 table view 連結（網址帶 ?v=）。view 模式查詢不吃 Notion 方案配額。留空用預設（Howard 的看板上的「Desk · 指派給我」）",
+      "default": ""
+    },
+    "it2Path": {
+      "type": "string",
+      "title": "it2 路徑",
+      "description": "iTerm2 的 it2 CLI 路徑，留空用 /Applications/iTerm.app/Contents/Resources/utilities/it2",
+      "default": ""
+    }
+  }
+}
