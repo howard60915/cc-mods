@@ -47,7 +47,8 @@ const SPRINT_CACHE_MS = 6 * 3_600_000
 const SPRINT_FAIL_CACHE_MS = 30 * 60_000
 const STORE_BINDINGS = 'bindings'
 const STORE_ALIASES = 'aliases'
-const STORE_CARDS_CACHE = 'cardsCache'
+/** 快取的卡片形狀改了就把版號加一，舊版寫的快取才不會被讀進來。 */
+const STORE_CARDS_CACHE = 'cardsCache-v3'
 const STORE_SPRINTS = 'sprints'
 const STORE_STORIES = 'stories'
 const STORY_CACHE_MS = 24 * 3_600_000
@@ -195,7 +196,8 @@ async function refreshCards($: Engine, force = false): Promise<void> {
   if (!force) {
     const cached = (await $.store.get(STORE_CARDS_CACHE)) as CardsCache | undefined
     const now = await $.clock.now()
-    if (cached && Array.isArray(cached.cards) && now - cached.at < CARDS_CACHE_MS) {
+    const isFresh = (c: unknown): c is Card => Boolean(c) && typeof (c as Card).url === 'string' && Array.isArray((c as Card).storyIds) && Array.isArray((c as Card).sprintIds)
+    if (cached && Array.isArray(cached.cards) && cached.cards.every(isFresh) && now - cached.at < CARDS_CACHE_MS) {
       await update($, cards, () => cached.cards)
       await update($, meta, m => ({ ...m, loadedAt: cached.at, loading: false }))
       await resolveSprint($, cached.cards)
@@ -315,7 +317,8 @@ type StoryInfo = { name: string; at: number }
 
 /** Story 的標題：卡上掛的 Story 頁各讀一次（fetch 不吃配額），存 store 一天；失敗也記 30 分鐘。 */
 async function resolveStories($: Engine, list: Card[], force = false): Promise<void> {
-  const ids = [...new Set(list.flatMap(c => c.storyIds))]
+  const ids = [...new Set(list.flatMap(c => c.storyIds ?? []))]
+  if (ids.length === 0) return
   const now = await $.clock.now()
   const known = ((await $.store.get(STORE_STORIES)) as Record<string, StoryInfo> | undefined) ?? {}
   let changed = false
@@ -1037,7 +1040,7 @@ function paneArgs(focus: boolean) {
 function groupByStory(list: Card[], names: Stories): { id: string; name: string; cards: Card[] }[] {
   const groups = new Map<string, Card[]>()
   for (const c of list) {
-    const id = c.storyIds[0] ?? ''
+    const id = c.storyIds?.[0] ?? ''
     const arr = groups.get(id) ?? []
     arr.push(c)
     groups.set(id, arr)
