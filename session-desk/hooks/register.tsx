@@ -7,7 +7,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface as Engine, Register } from 'claude-code'
 
-import type { Aliases, Binding, Bindings, Card, CardsMeta, DeskSession, Selection, Sprints } from '../types'
+import type { Aliases, Binding, Bindings, Card, CardsMeta, DeskSession, Selection, Sprints, Stories } from '../types'
 import type { It2Tab } from './model'
 import {
   STATUSES,
@@ -49,15 +49,18 @@ const STORE_BINDINGS = 'bindings'
 const STORE_ALIASES = 'aliases'
 const STORE_CARDS_CACHE = 'cardsCache'
 const STORE_SPRINTS = 'sprints'
+const STORE_STORIES = 'stories'
+const STORY_CACHE_MS = 24 * 3_600_000
 
 const sessions = atom({ plugin: 'session-desk', key: 'sessions' } as const, [] as DeskSession[], { shape: 'sessions-3' })
-const cards = atom({ plugin: 'session-desk', key: 'cards' } as const, [] as Card[], { shape: 'cards-2' })
+const cards = atom({ plugin: 'session-desk', key: 'cards' } as const, [] as Card[], { shape: 'cards-3' })
 const meta = atom({ plugin: 'session-desk', key: 'meta' } as const, {
   loadedAt: 0,
   loading: false,
   onlyCurrent: true,
 } as CardsMeta)
 const sprints = atom({ plugin: 'session-desk', key: 'sprints' } as const, {} as Sprints)
+const stories = atom({ plugin: 'session-desk', key: 'stories' } as const, {} as Stories)
 const bindings = atom({ plugin: 'session-desk', key: 'bindings' } as const, {} as Bindings, { shape: 'bindings-2' })
 const aliases = atom({ plugin: 'session-desk', key: 'aliases' } as const, {} as Aliases)
 const sel = atom(
@@ -196,6 +199,7 @@ async function refreshCards($: Engine, force = false): Promise<void> {
       await update($, cards, () => cached.cards)
       await update($, meta, m => ({ ...m, loadedAt: cached.at, loading: false }))
       await resolveSprint($, cached.cards)
+      await resolveStories($, cached.cards)
       await pruneBindings($, cached.cards)
       return
     }
@@ -232,6 +236,7 @@ async function refreshCards($: Engine, force = false): Promise<void> {
       retryTimer = undefined
     }
     await resolveSprint($, list, force)
+    await resolveStories($, list, force)
     await pruneBindings($, list)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -304,6 +309,32 @@ async function resolveSprint($: Engine, list: Card[], force = false): Promise<vo
     else delete next.sprint
     return next
   })
+}
+
+type StoryInfo = { name: string; at: number }
+
+/** Story 的標題：卡上掛的 Story 頁各讀一次（fetch 不吃配額），存 store 一天；失敗也記 30 分鐘。 */
+async function resolveStories($: Engine, list: Card[], force = false): Promise<void> {
+  const ids = [...new Set(list.flatMap(c => c.storyIds))]
+  const now = await $.clock.now()
+  const known = ((await $.store.get(STORE_STORIES)) as Record<string, StoryInfo> | undefined) ?? {}
+  let changed = false
+  for (const id of ids) {
+    const hit = known[id]
+    if (hit && now - hit.at < (hit.name ? STORY_CACHE_MS : SPRINT_FAIL_CACHE_MS) && !(force && !hit.name)) continue
+    try {
+      const res = await notion($, 'notion-fetch', { id })
+      const outer = res.isError ? {} : (JSON.parse(firstText(res.content)) as { title?: string })
+      known[id] = { name: typeof outer.title === 'string' ? outer.title.trim() : '', at: now }
+    } catch {
+      known[id] = { name: '', at: now }
+    }
+    changed = true
+  }
+  if (changed) await $.store.set(STORE_STORIES, known)
+  const mirror: Stories = {}
+  for (const id of ids) mirror[id] = known[id]?.name ?? ''
+  await update($, stories, () => mirror)
 }
 
 /** 除錯：寫進 Claude Code 的 debug log（`claude --debug` 看得到），不落地檔案。 */
@@ -591,6 +622,7 @@ export const register: Register = (on, options) => {
     const cardList: Card[] = await read($, cards)
     const m: CardsMeta = await read($, meta)
     const sp: Sprints = await read($, sprints)
+    const st: Stories = await read($, stories)
     const b: Bindings = await read($, bindings)
     const a: Aliases = await read($, aliases)
     const s: Selection = await read($, sel)
@@ -672,6 +704,35 @@ export const register: Register = (on, options) => {
       </Button>
     )
 
+    const renderCard = (c: Card) => {
+          const picked = s.cardUrl === c.url
+          const owner = ownerByCard.get(c.url)
+          const titleW = Math.max(12, inner - 2 - 6 - 6 - 4)
+          const line = row(
+            <Button key={`c:${c.id}`} plain onPress={() => void update($, sel, x => ({ ...x, cardUrl: c.url, picking: false, naming: false }))}>
+              <Text color={pal.accent}>{picked ? '▸ ' : '  '}</Text>
+              <Text {...dimProps}>{c.taskId.padStart(5)} </Text>
+              <Text color={statusColor(c.status)}>{shortStatus(c.status).padEnd(5)} </Text>
+              <Text color={/P0|P1/.test(c.priority) ? pal.waiting : pal.muted} dimColor={!pal.muted && !/P0|P1/.test(c.priority)}>
+                {shortPriority(c.priority).padEnd(3)}
+              </Text>
+              <Text color={picked ? pal.accent : pal.text}>{fit(c.title, titleW - (c.unassigned ? 7 : 0))}</Text>
+              {c.unassigned && <Text color={pal.busy}> ⚑待指派</Text>}
+            </Button>,
+          )
+          if (!owner) return line
+          return (
+            <Box flexDirection="column">
+              {line}
+              {row(
+                <Text color={owner.isClosed ? pal.closed : pal.ok}>
+                  {'                    '}⌁ {fit(owner.name, 20)}
+                  {owner.isClosed ? '（已關閉）' : ''}
+                </Text>,
+              )}
+            </Box>
+          )
+            }
     return (
       <Box flexDirection="column">
         {header('Sessions', String(list.length), [
@@ -738,41 +799,24 @@ export const register: Register = (on, options) => {
         {closed.length > 0 && footer()}
 
         {header(
-          'Cards',
+          'notions',
           `${scopeLabel} · ${shown.length}`,
           m.loading ? [{ text: '載入中…' }] : m.loadedAt ? [{ text: `${age(m.loadedAt, now)} 前` }] : undefined,
         )}
         {m.error && row(<Text color={pal.waiting}>{fit(m.error, inner)}</Text>)}
         {shown.length === 0 && !m.loading && empty(m.error ? '載入失敗，按 r 重試。' : '沒有指派給你、還沒結案的卡。')}
-        {shown.map(c => {
-          const picked = s.cardUrl === c.url
-          const owner = ownerByCard.get(c.url)
-          const titleW = Math.max(12, inner - 2 - 6 - 6 - 4)
-          const line = row(
-            <Button key={`c:${c.id}`} plain onPress={() => void update($, sel, x => ({ ...x, cardUrl: c.url, picking: false, naming: false }))}>
-              <Text color={pal.accent}>{picked ? '▸ ' : '  '}</Text>
-              <Text {...dimProps}>{c.taskId.padStart(5)} </Text>
-              <Text color={statusColor(c.status)}>{shortStatus(c.status).padEnd(5)} </Text>
-              <Text color={/P0|P1/.test(c.priority) ? pal.waiting : pal.muted} dimColor={!pal.muted && !/P0|P1/.test(c.priority)}>
-                {shortPriority(c.priority).padEnd(3)}
-              </Text>
-              <Text color={picked ? pal.accent : pal.text}>{fit(c.title, titleW - (c.unassigned ? 7 : 0))}</Text>
-              {c.unassigned && <Text color={pal.busy}> ⚑待指派</Text>}
-            </Button>,
-          )
-          if (!owner) return line
-          return (
-            <Box flexDirection="column">
-              {line}
-              {row(
-                <Text color={owner.isClosed ? pal.closed : pal.ok}>
-                  {'                    '}⌁ {fit(owner.name, 20)}
-                  {owner.isClosed ? '（已關閉）' : ''}
-                </Text>,
-              )}
-            </Box>
-          )
-        })}
+        {groupByStory(shown, st).map(group => (
+          <Box flexDirection="column">
+            {row(
+              <Text>
+                <Text color={pal.accent}>▍</Text>
+                <Text bold {...textProps}>{fit(group.name, inner - 10)}</Text>
+                <Text {...dimProps}> · {group.cards.length}</Text>
+              </Text>,
+            )}
+            {group.cards.map(c => renderCard(c))}
+          </Box>
+        ))}
         {footer()}
 
         {Select && s.pickingSprint && (
@@ -987,4 +1031,18 @@ function paneArgs(focus: boolean) {
     ...(focus ? { focus: true as const } : {}),
     ...(pal.bg ? { backgroundColor: pal.bg } : {}),
   }
+}
+
+/** 依 Story 分組；沒 Story 的放最後一組。組內維持原排序，組間依卡數多到少、同數依名稱。 */
+function groupByStory(list: Card[], names: Stories): { id: string; name: string; cards: Card[] }[] {
+  const groups = new Map<string, Card[]>()
+  for (const c of list) {
+    const id = c.storyIds[0] ?? ''
+    const arr = groups.get(id) ?? []
+    arr.push(c)
+    groups.set(id, arr)
+  }
+  return [...groups.entries()]
+    .map(([id, cards]) => ({ id, name: id ? names[id] || `Story ${id.slice(0, 6)}` : '（沒有 Story）', cards }))
+    .sort((a, b) => (a.id === '' ? 1 : 0) - (b.id === '' ? 1 : 0) || b.cards.length - a.cards.length || a.name.localeCompare(b.name))
 }

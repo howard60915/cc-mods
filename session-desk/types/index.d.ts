@@ -44,7 +44,12 @@ export type Card = {
   lastEdited: string
   /** Assign 是空的（只有 owner 列到我）：待指派。 */
   unassigned: boolean
+  /** 卡掛在哪個 Story（page id）；畫面依這個分組。 */
+  storyIds: string[]
 }
+
+/** 卡上出現過的 Story：page id → 標題（讀不到時是空字串）。 */
+export type Stories = Record<string, string>
 
 export type CardsMeta = {
   /** 最後一次成功載入（ms）；0 = 還沒載過。 */
@@ -103,6 +108,7 @@ declare module 'claude-code' {
       cards: Shaped<Card[]>
       meta: CardsMeta
       sprints: Sprints
+      stories: Stories
       bindings: Shaped<Bindings>
       aliases: Aliases
       sel: Shaped<Selection>
