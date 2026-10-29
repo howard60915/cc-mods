@@ -26,10 +26,10 @@ marketplace 是資料夾、entry 是相對路徑，所以 Claude Code 直接讀 
 ## 用法
 
 - `/desk` 開 pane 並拿到焦點；`ctrl+x tab` 進出焦點、`Esc` 回輸入框、`ctrl+x x` 關 pane。
-- 方向鍵選列、Enter：session → 跳到它的 iTerm2 分頁；已關閉的 session → 開新分頁 `claude --resume`；卡 → 選取。
+- 方向鍵選列、Enter（或點一下）：session → 跳到它的 iTerm2 分頁；已關閉的 session → 開新分頁 `claude --resume`；卡 → 在 Notion 桌面 app 開（`notion://`，app 不在就退回瀏覽器）。
 - 操作列是情境式的：選到什麼才列什麼，`a` 切成全部。
   - Session：`s` 傳訊息、`p` 把滑鼠選取的文字送過去、`m` 命名（Desk 別名＋iTerm2 分頁名；本 session 下一句送出後 Claude 的名稱也跟上）
-  - 卡片：`o` 開卡片、`t` 改 Status、`n` 用卡在新分頁起 claude
+  - 卡片：`o` 用瀏覽器開、`t` 改 Status、`n` 用卡在新分頁起 claude
   - 綁定：`b` 綁定／改綁、`u` 解除（綁定存在 plugin store，跨 session 共用；session 關掉後仍留在「已關閉・有綁卡」）
   - 檢視：`c` 本 Sprint／全部、`v` 選 Sprint、`r` 重整
 
