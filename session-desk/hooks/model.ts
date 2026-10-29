@@ -194,6 +194,7 @@ export function toCard(row: Record<string, unknown>): Card | undefined {
     sprintIds: urlList(row.Sprint).map(notionId).filter(Boolean),
     git: str(row.Git),
     lastEdited: str(row['Last edited time']),
+    unassigned: urlList(row.Assign).length === 0,
   }
 }
 

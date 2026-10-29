@@ -51,7 +51,7 @@ const STORE_CARDS_CACHE = 'cardsCache'
 const STORE_SPRINTS = 'sprints'
 
 const sessions = atom({ plugin: 'session-desk', key: 'sessions' } as const, [] as DeskSession[], { shape: 'sessions-3' })
-const cards = atom({ plugin: 'session-desk', key: 'cards' } as const, [] as Card[], { shape: 'cards-1' })
+const cards = atom({ plugin: 'session-desk', key: 'cards' } as const, [] as Card[], { shape: 'cards-2' })
 const meta = atom({ plugin: 'session-desk', key: 'meta' } as const, {
   loadedAt: 0,
   loading: false,
@@ -756,7 +756,8 @@ export const register: Register = (on, options) => {
               <Text color={/P0|P1/.test(c.priority) ? pal.waiting : pal.muted} dimColor={!pal.muted && !/P0|P1/.test(c.priority)}>
                 {shortPriority(c.priority).padEnd(3)}
               </Text>
-              <Text color={picked ? pal.accent : pal.text}>{fit(c.title, titleW)}</Text>
+              <Text color={picked ? pal.accent : pal.text}>{fit(c.title, titleW - (c.unassigned ? 7 : 0))}</Text>
+              {c.unassigned && <Text color={pal.busy}> ⚑待指派</Text>}
             </Button>,
           )
           if (!owner) return line

@@ -42,6 +42,8 @@ export type Card = {
   sprintIds: string[]
   git: string
   lastEdited: string
+  /** Assign 是空的（只有 owner 列到我）：待指派。 */
+  unassigned: boolean
 }
 
 export type CardsMeta = {

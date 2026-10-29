@@ -46,6 +46,8 @@ test('Notion row → Card', async () => {
   expect(card?.id).toBe('40297d91ff3781ff981dd2bb99b62817')
   expect(card?.title).toBe('[FE] 結帳頁優惠碼輸入框驗證 (US-3)')
   expect(card?.sprintIds[0]).toBe('3e397d91ff378062a86fe17fe23994ed')
+  expect(card?.unassigned).toBe(true)
+  expect(toCard({ url: 'https://app.notion.com/p/40297d91ff3781ff981dd2bb99b62817', Items: 'x', Assign: '["user://3c9d"]' })?.unassigned).toBe(false)
   expect(notionId('https://www.notion.so/jtcg/Foo-3e397d91ff378062a86fe17fe23994ed?pvs=4')).toBe('3e397d91ff378062a86fe17fe23994ed')
   expect(unescapeTitle('a \\[b\\]')).toBe('a [b]')
 })
