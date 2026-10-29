@@ -548,9 +548,8 @@ async function pasteSelection($: Engine): Promise<void> {
   await sendTo($, `（從 ${from} 轉貼的 context）\n${picked.text}`)
 }
 
-/** 在 Notion 桌面 app 開卡（notion:// 協定），app 不在就退回瀏覽器。Enter／點卡片列都走這裡。 */
+/** 在 Notion 桌面 app 開卡（notion:// 協定），app 不在就退回瀏覽器。 */
 async function openCardInApp($: Engine, card: Card): Promise<void> {
-  await update($, sel, x => ({ ...x, cardUrl: card.url, picking: false, naming: false, sending: false, pickingSprint: false }))
   const appUrl = card.id ? `notion://www.notion.so/${card.id}` : card.url
   try {
     const r = await $.process.run(['open', appUrl], { timeoutMs: 5000 })
@@ -561,15 +560,15 @@ async function openCardInApp($: Engine, card: Card): Promise<void> {
   }
 }
 
+/** o：把選到的卡在 Notion 桌面 app 開（notion:// 協定），app 不在就退回瀏覽器。 */
 async function openCard($: Engine): Promise<void> {
-  const s = await read($, sel)
-  const card = (await read($, cards)).find(c => c.url === s.cardUrl)
+  const sl = await read($, sel)
+  const card = (await read($, cards)).find(c => c.url === sl.cardUrl)
   if (!card) {
     await note($, '先選一張卡再按 o')
     return
   }
-  await $.process.run(['open', card.url], { timeoutMs: 5000 })
-  await note($, `開啟 #${card.taskId}`)
+  await openCardInApp($, card)
 }
 
 /** 用選到的卡在 iTerm2 開一個新分頁、同一個目錄起 claude，開場就是這張卡。 */
@@ -617,7 +616,7 @@ export const register: Register = (on, options) => {
     const opened = await $.ui.open(paneArgs(true))
     if (!opened.isPlaced) return { text: `Desk 開不出來：${opened.reason}` }
     void refreshSessions($)
-    return { text: 'Desk 開了。Enter 跳 session／Notion 開卡、b 綁卡、m 命名、t 改狀態、Esc 回來。' }
+    return { text: 'Desk 開了。Enter 跳 session／選卡、o 在 Notion 開卡、b 綁卡、m 命名、t 改狀態、Esc 回來。' }
   })
 
   // 本 session 被取別名後，下一個 prompt 把名稱交給引擎（UserPromptSubmit 的 sessionTitle）。
@@ -725,7 +724,7 @@ export const register: Register = (on, options) => {
           const owner = ownerByCard.get(c.url)
           const titleW = Math.max(12, inner - 2 - 6 - 6 - 4)
           const line = row(
-            <Button key={`c:${c.id}`} plain onPress={() => void openCardInApp($, c)}>
+            <Button key={`c:${c.id}`} plain onPress={() => void update($, sel, x => ({ ...x, cardUrl: c.url, picking: false, naming: false, sending: false, pickingSprint: false }))}>
               <Text color={pal.accent}>{picked ? '▸ ' : '  '}</Text>
               <Text {...dimProps}>{c.taskId.padStart(5)} </Text>
               <Text color={statusColor(c.status)}>{shortStatus(c.status).padEnd(5)} </Text>
@@ -931,7 +930,7 @@ export const register: Register = (on, options) => {
             (selected || selectedClosed) && key('m', '命名', () => void update($, sel, x => ({ ...x, naming: !x.naming, picking: false, sending: false, pickingSprint: false }))),
           ])
           const cardOps = group([
-            selCard && key('o', '瀏覽器開', () => void openCard($)),
+            selCard && key('o', '開卡片', () => void openCard($)),
             selCard && key('t', '改狀態', () => void update($, sel, x => ({ ...x, picking: !x.picking, naming: false, sending: false, pickingSprint: false }))),
             selCard && key('n', '新 session', () => void newSession($)),
           ])
@@ -986,7 +985,7 @@ export const register: Register = (on, options) => {
                 <Box>
                   <Text {...dimProps}>{padTo('卡片', 8)}</Text>
                   {all([
-                    ['o', '瀏覽器開', () => void openCard($)],
+                    ['o', '開卡片', () => void openCard($)],
                     ['t', '改狀態', selCard ? () => void update($, sel, x => ({ ...x, picking: !x.picking, naming: false, sending: false, pickingSprint: false })) : noop('先選一張卡')],
                     ['n', '新 session', () => void newSession($)],
                   ])}
@@ -1020,7 +1019,7 @@ export const register: Register = (on, options) => {
             </Box>
           )
         })()}
-        <Text {...dimProps}>{s.note && now - s.noteAt < 20_000 ? s.note : e.props.isFocused ? 'Enter 跳過去／resume／Notion 開卡 · Esc 回到輸入框' : 'ctrl+x tab 或點一下進來操作'}</Text>
+        <Text {...dimProps}>{s.note && now - s.noteAt < 20_000 ? s.note : e.props.isFocused ? 'Enter 跳過去／resume／選卡 · o 在 Notion 開 · Esc 回到輸入框' : 'ctrl+x tab 或點一下進來操作'}</Text>
       </Box>
     )
   })
