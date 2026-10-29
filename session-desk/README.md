@@ -2,7 +2,17 @@
 
 Claude Code 的 Session 總管 pane：一眼看完這台機器上所有 Claude Code session 的狀態（busy／idle／waiting）、跳到它的 iTerm2 分頁、對它傳訊息；同一個 pane 下半列出 Notion Sprint Board 上指派給我、還沒結案的卡，可以綁到 session、改狀態、開瀏覽器、用卡開新 session。
 
-## 安裝（本機資料夾當 marketplace）
+## 安裝
+
+從 GitHub（在 Claude Code 的輸入框）：
+
+```
+/plugin install session-desk --marketplace howard60915/cc-mods
+```
+
+或 shell：`claude plugin install session-desk --marketplace howard60915/cc-mods`。這是私有 repo，裝的人要能讀它、機器上要有 github.com 的 git 憑證（`gh auth login` 後 `gh auth setup-git`）。
+
+本機開發用資料夾當 marketplace：
 
 ```
 claude plugin marketplace add ~/Howork/cc-mods
