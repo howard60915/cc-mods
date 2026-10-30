@@ -43,7 +43,8 @@ const SESSIONS_MS = 5_000
 const CARDS_MS = 5 * 60_000
 const CARDS_CACHE_MS = 4 * 60_000
 const RETRY_AFTER_FAIL_MS = 30_000
-const SPRINT_CACHE_MS = 6 * 3_600_000
+/** Sprint 的 Current 狀態兩週才換一次，而 Sprint 頁掛著幾百張 Tasks（上百 KB），一天讀一次就夠；r 強制重整不受此限。 */
+const SPRINT_CACHE_MS = 24 * 3_600_000
 const SPRINT_FAIL_CACHE_MS = 30 * 60_000
 const STORE_BINDINGS = 'bindings'
 const STORE_ALIASES = 'aliases'
@@ -277,7 +278,7 @@ async function resolveSprint($: Engine, list: Card[], force = false): Promise<vo
   for (const id of ids) {
     const hit = known[id]
     // 讀成功的記 6 小時；讀失敗的（被擋、網路）也記 30 分鐘，免得每輪都撞牆、每撞一次對話區就多一行。
-    if (hit && now - hit.at < (hit.status ? SPRINT_CACHE_MS : SPRINT_FAIL_CACHE_MS) && !(force && !hit.status)) continue
+    if (hit && now - hit.at < (hit.status ? SPRINT_CACHE_MS : SPRINT_FAIL_CACHE_MS) && !force) continue
     try {
       const res = await notion($, 'notion-fetch', { id })
       if (res.isError) {
