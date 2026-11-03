@@ -44,10 +44,11 @@ mod 從計時器發的 Notion MCP 呼叫會被 Claude Code 的 auto mode 分類�
 
 ```json
 "mcp__plugin_Notion_notion__notion-query-data-sources",
+"mcp__plugin_Notion_notion__notion-search",
 "mcp__plugin_Notion_notion__notion-fetch"
 ```
 
-或在 Claude Code 打 `/permissions` 用介面加。兩個都是唯讀：前者查 view 裡的卡，後者讀 Sprint／Story 頁的標題。改 Status 用的 `notion-update-page` 是寫入，刻意不放行；按 `t` 被擋時提示列會說，要的話再自己加。
+或在 Claude Code 打 `/permissions` 用介面加。三個都是唯讀：第一個查 view（卡片、Sprint），第二個用 search 拿 Story 標題，第三個只在 search 找不到某個 Story 時才讀那一頁。改 Status 用的 `notion-update-page` 是寫入，刻意不放行；按 `t` 被擋時提示列會說，要的話再自己加。
 
 前提：Claude Code 的 Notion plugin 已連線（`/mcp` 看得到 `plugin:Notion:notion`）。
 
@@ -60,6 +61,10 @@ mod 從計時器發的 Notion MCP 呼叫會被 Claude Code 的 auto mode 分類�
 - `Status` 不是 Archived
 
 複製該 view 的網址（帶 `?v=`），填進 `/plugin` → session-desk → 「Notion view 連結」。留空會用 Howard 的 view，別人用會查到 Howard 的卡。
+
+同一頁再放一個 **Sprints (for Scrum)** 的連結資料庫、加一個 table view，篩選 `Sprint status` 是 Last／Current／Next，網址填進「Sprints view 連結」。mod 靠它知道哪個是本 Sprint，一天查一次；不建的話用 Howard 的，通常一樣。
+
+為什麼都用 view 而不是讀頁面：Notion plugin 的 `notion-fetch` 只有「整頁」一種讀法，Sprint 頁掛著幾百張 Tasks、Story 頁可能是整本 bug 日誌，動輒上百 KB 還可能超過 MCP 回傳上限。view 查詢與 search 只回需要的欄位。
 
 ### 3. iTerm2
 
@@ -130,6 +135,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 | 配色 | `Claude Code`（跟 Claude 亮暗主題）、`終端機`（ANSI 色，跟 iTerm2 profile）、或 Catppuccin／Tokyo Night／Nord／Gruvbox／Dracula／Rosé Pine／Kanagawa… 15 組色碼（有底色的會塗整個 pane） | Claude Code |
 | 啟動時自動開 pane | `on`／`off`；off 時只有 `/desk` 才開 | on |
 | Notion view 連結 | 「指派給我或 owner 有我、未結案」的 table view 網址（帶 `?v=`） | Howard 的 view |
+| Sprints view 連結 | Sprints 資料庫上篩 Last／Current／Next 的 table view | Howard 的「Desk · Sprints」 |
 | it2 路徑 | iTerm2 的 it2 CLI | `/Applications/iTerm.app/…/it2` |
 
 設定改完若沒生效，`/reload-plugins` 或重開 session。
@@ -141,8 +147,8 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 | notions 區紅字 `… refused: The server-side auto mode classifier gave no verdict` 或對話區出現 `notion-fetch denied by auto mode` | 步驟 1 的放行規則沒加（或只加了一個）。加完 `r`。 |
 | 紅字 `Your workspace has used up its Query Data Source allowance` | Notion 非 Business 方案的 rows／SQL 配額被吃光（約 60 分鐘重置）。本 mod 只用 view 模式，正常不會碰到；若你把 view 連結填成別的東西或同時有別的工具在查，等重置。 |
 | 紅字 `ECONNRESET`／逾時 | Notion MCP 連線抖動。mod 會自動重試三次、30 秒後再補查，期間顯示上一次的清單（後面會註明）。 |
-| 卡片區標題一直是「全部」、`c` 切不到本 Sprint | Sprint 頁讀不到（通常是 `notion-fetch` 沒放行）。放行後 `r`。 |
-| 組名停在 `Story xxxxxx` | Story 頁讀取失敗，30 分鐘後自動重試，或 `r`。 |
+| 卡片區標題一直是「全部」、`c` 切不到本 Sprint | Sprints view 查不到（`notion-query-data-sources` 沒放行，或 view 連結填錯）。放行後 `r`。 |
+| 組名停在 `Story xxxxxx` | `notion-search` 沒放行，且那頁大到讀不完（例如「[Support] 維運 / Bug issues」）；放行 search 後 `r`。 |
 | pane 開不出來 | 終端寬度不到 144 欄時不會自動開；打 `/desk` 可在 110 欄以上強制開。 |
 | session 列有 `⌀`、Enter 跳不過去 | 不是 iTerm2，或 `it2` 路徑不對（設定可改）。 |
 | 按 `t` 改狀態被擋 | `notion-update-page` 是寫入工具，預設沒放行；要用就加進 `permissions.allow`。 |
@@ -152,7 +158,9 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 ## 資料從哪來
 
 - **session**：`~/.claude/sessions/<pid>.json`（Claude Code 自己寫的：name、status、waitingFor、cwd、jobId、parkedJobId），每 5 秒讀一次；`ps` 判活；`it2 session list` 把 tty 對到 iTerm2 分頁。
-- **卡片**：Notion plugin MCP 的 `notion-query-data-sources`（view 模式），結果存 plugin store 4 分鐘、所有 session 共用；每 5 分鐘重查。Sprint 頁 24 小時、Story 頁 24 小時各讀一次（`notion-fetch`）。
+- **卡片**：Notion plugin MCP 的 `notion-query-data-sources`（view 模式），結果存 plugin store 4 分鐘、所有 session 共用；每 5 分鐘重查。
+- **Sprint**：同一個工具查「Desk · Sprints」view（Last／Current／Next 三筆），24 小時一次。
+- **Story 名稱**：`notion-search` 限定 Story 資料庫一次拿回所有標題，24 小時一次；search 沒命中的才 `notion-fetch` 那一頁，整頁太大讀不完的記 24 小時不再試。
 - **綁定、別名**：plugin store（`$.store`），跨 session 共用，不隨 session 結束消失。
 
 ## 開發

@@ -39,6 +39,8 @@ const NOTION = 'plugin:Notion:notion'
 /** 預設值；實際值從 plugin.json 的 userConfig 讀（register 裡的 options）。 */
 const DEFAULT_VIEW_URL = 'https://www.notion.so/40097d91ff3781ed859befc87e22173e?v=40797d91ff378161baf7000cfa5b04ec'
 const DEFAULT_IT2 = '/Applications/iTerm.app/Contents/Resources/utilities/it2'
+/** Sprints 資料庫上「Last／Current／Next」三筆的 table view：view 模式一次查三筆，不用 fetch 整個 Sprint 頁。 */
+const DEFAULT_SPRINTS_VIEW = 'view://40d97d91-ff37-8116-b518-000c84a7906d'
 const SESSIONS_MS = 5_000
 const CARDS_MS = 5 * 60_000
 const CARDS_CACHE_MS = 4 * 60_000
@@ -52,6 +54,10 @@ const STORE_ALIASES = 'aliases'
 const STORE_CARDS_CACHE = 'cardsCache-v3'
 const STORE_SPRINTS = 'sprints'
 const STORE_STORIES = 'stories'
+/** Story (for Scrum) 資料庫：用 search 限定這個資料來源，一次拿回所有 Story 標題（回傳只有標題，很小）。 */
+const STORIES_DS = 'collection://1eb97d91-ff37-817e-bbea-000bf32af58a'
+/** Claude Code 對 MCP 回傳有大小上限，超過時交給 mod 的是這段錯誤文字而不是內容。 */
+const OVERSIZED = /exceeds maximum allowed tokens/i
 const STORY_CACHE_MS = 24 * 3_600_000
 
 const sessions = atom({ plugin: 'session-desk', key: 'sessions' } as const, [] as DeskSession[], { shape: 'sessions-3' })
@@ -85,6 +91,8 @@ let autoOpen = true
 let VIEW_URL = DEFAULT_VIEW_URL
 /** iTerm2 的 it2 CLI。 */
 let IT2 = DEFAULT_IT2
+/** Sprints 的 view（Last／Current／Next）。 */
+let SPRINTS_VIEW = DEFAULT_SPRINTS_VIEW
 
 async function note($: Engine, text: string): Promise<void> {
   const at = await $.clock.now()
@@ -268,71 +276,115 @@ async function pruneBindings($: Engine, list: Card[]): Promise<void> {
   })
 }
 
-/** 哪個 Sprint 是 Current：卡上掛的 Sprint 頁各讀一次（fetch 不吃配額），結果存 store 6 小時。 */
+/**
+ * Sprint 的名稱與狀態：查 Sprints 的「Last／Current／Next」view（view 模式不吃配額，一次三筆），
+ * 存 store 24 小時，所有 session 共用；r 強制重整才重查。不再 fetch 任何 Sprint 頁。
+ * 卡片掛的 Sprint 不在這三筆裡（更早的 Sprint）時只顯示 id，不另外去讀。
+ */
 async function resolveSprint($: Engine, list: Card[], force = false): Promise<void> {
-  const ids = [...new Set(list.flatMap(c => c.sprintIds))]
-  if (ids.length === 0) return
   const now = await $.clock.now()
-  const known = ((await $.store.get(STORE_SPRINTS)) as Record<string, SprintInfo> | undefined) ?? {}
-  let changed = false
-  for (const id of ids) {
-    const hit = known[id]
-    // 讀成功的記 6 小時；讀失敗的（被擋、網路）也記 30 分鐘，免得每輪都撞牆、每撞一次對話區就多一行。
-    if (hit && now - hit.at < (hit.status ? SPRINT_CACHE_MS : SPRINT_FAIL_CACHE_MS) && !force) continue
+  let known = ((await $.store.get(STORE_SPRINTS)) as Record<string, SprintInfo> | undefined) ?? {}
+  const latest = Math.max(0, ...Object.values(known).map(v => v.at ?? 0))
+  if (force || now - latest >= SPRINT_CACHE_MS || Object.keys(known).length === 0) {
     try {
-      const res = await notion($, 'notion-fetch', { id })
-      if (res.isError) {
-        known[id] = { status: '', name: '', at: now }
-        changed = true
-        continue
+      const res = await notion($, 'notion-query-data-sources', { data: { mode: 'view', view_url: SPRINTS_VIEW, page_size: 10 } })
+      const text = firstText(res.content)
+      if (!res.isError && !OVERSIZED.test(text)) {
+        const parsed = JSON.parse(text) as { results?: Record<string, unknown>[] }
+        const fresh: Record<string, SprintInfo> = {}
+        for (const row of parsed.results ?? []) {
+          const id = typeof row.url === 'string' ? notionId(row.url) : ''
+          if (!id) continue
+          fresh[id] = {
+            name: typeof row['Sprint name'] === 'string' ? row['Sprint name'] : 'Sprint',
+            status: typeof row['Sprint status'] === 'string' ? row['Sprint status'] : '',
+            at: now,
+          }
+        }
+        if (Object.keys(fresh).length > 0) {
+          known = fresh
+          await $.store.set(STORE_SPRINTS, known)
+        }
+      } else {
+        dumpDebug($, { sprintsView: res.isError ? text.slice(0, 300) : 'oversized' })
       }
-      const outer = JSON.parse(firstText(res.content)) as { text?: string }
-      const m = (outer.text ?? '').match(/<properties>\s*([\s\S]*?)\s*<\/properties>/)
-      if (!m) continue
-      const props = JSON.parse(m[1] ?? '{}') as Record<string, unknown>
-      known[id] = {
-        status: typeof props['Sprint status'] === 'string' ? props['Sprint status'] : '',
-        name: typeof props['Sprint name'] === 'string' ? props['Sprint name'] : 'Sprint',
-        at: now,
-      }
-      changed = true
-    } catch {
-      known[id] = { status: '', name: '', at: now }
-      changed = true
+    } catch (err) {
+      dumpDebug($, { sprintsView: err instanceof Error ? err.message : String(err) })
     }
   }
-  if (changed) await $.store.set(STORE_SPRINTS, known)
+  const ids = new Set([...list.flatMap(c => c.sprintIds), ...Object.keys(known)])
   const mirror: Sprints = {}
   for (const id of ids) mirror[id] = { name: known[id]?.name ?? '', status: known[id]?.status ?? '' }
   await update($, sprints, () => mirror)
-  const current = ids.map(id => [id, known[id]] as const).find(([, info]) => info?.status === 'Current')
+  const current = Object.entries(known).find(([, info]) => info.status === 'Current')
   await update($, meta, m => {
     const next: CardsMeta = { ...m }
-    if (current && current[1]) next.sprint = { id: current[0], name: current[1].name }
+    if (current) next.sprint = { id: current[0], name: current[1].name }
     else delete next.sprint
     return next
   })
 }
 
-type StoryInfo = { name: string; at: number }
+type StoryInfo = { name: string; at: number; unreadable?: boolean }
 
-/** Story 的標題：卡上掛的 Story 頁各讀一次（fetch 不吃配額），存 store 一天；失敗也記 30 分鐘。 */
+/**
+ * Story 的標題。先用一次 notion-search（限定 Story 資料庫）把所有 Story 的標題拿回來——回傳只有標題，很小；
+ * search 沒放行或沒命中的，才逐頁 notion-fetch。整頁太大讀不完的記 24 小時（名稱留空，畫面顯示 Story xxxxxx），
+ * 其他失敗記 30 分鐘。結果存 store 一天；r 強制重整會重讀。
+ */
 async function resolveStories($: Engine, list: Card[], force = false): Promise<void> {
   const ids = [...new Set(list.flatMap(c => c.storyIds ?? []))]
   if (ids.length === 0) return
   const now = await $.clock.now()
   const known = ((await $.store.get(STORE_STORIES)) as Record<string, StoryInfo> | undefined) ?? {}
+  const fresh = (hit: StoryInfo | undefined) =>
+    Boolean(hit) && now - hit!.at < (hit!.name || hit!.unreadable ? STORY_CACHE_MS : SPRINT_FAIL_CACHE_MS) && !force
+  let pending = ids.filter(id => !fresh(known[id]))
   let changed = false
-  for (const id of ids) {
-    const hit = known[id]
-    if (hit && now - hit.at < (hit.name ? STORY_CACHE_MS : SPRINT_FAIL_CACHE_MS) && !(force && !hit.name)) continue
+
+  if (pending.length > 0) {
+    // 一次 search 補齊能補的
+    try {
+      const res = await notion($, 'notion-search', { query: 'Story', data_source_url: STORIES_DS, page_size: 50, max_highlight_length: 0 })
+      if (!res.isError) {
+        const parsed = JSON.parse(firstText(res.content)) as { results?: { url?: string; title?: string }[] }
+        const titles = new Map<string, string>()
+        for (const r of parsed.results ?? []) {
+          const id = typeof r.url === 'string' ? notionId(r.url) : ''
+          if (id && typeof r.title === 'string' && r.title.trim()) titles.set(id, r.title.trim())
+        }
+        for (const id of pending) {
+          const name = titles.get(id)
+          if (name) {
+            known[id] = { name, at: now }
+            changed = true
+          }
+        }
+        pending = pending.filter(id => !titles.has(id))
+      }
+    } catch {
+      // search 沒放行或壞掉：全部走 fetch
+    }
+  }
+
+  for (const id of pending) {
     try {
       const res = await notion($, 'notion-fetch', { id })
-      const outer = res.isError ? {} : (JSON.parse(firstText(res.content)) as { title?: string })
-      known[id] = { name: typeof outer.title === 'string' ? outer.title.trim() : '', at: now }
+      const text = firstText(res.content)
+      if (res.isError || OVERSIZED.test(text)) {
+        known[id] = { name: '', at: now, unreadable: OVERSIZED.test(text) }
+      } else {
+        const outer = JSON.parse(text) as { title?: string }
+        known[id] = { name: typeof outer.title === 'string' ? outer.title.trim() : '', at: now }
+      }
     } catch {
       known[id] = { name: '', at: now }
     }
+    changed = true
+  }
+  // 舊版留下的壞 key
+  if ('undefined' in known) {
+    delete known['undefined']
     changed = true
   }
   if (changed) await $.store.set(STORE_STORIES, known)
@@ -594,6 +646,7 @@ export const register: Register = (on, options) => {
   autoOpen = options.autoOpen !== 'off'
   VIEW_URL = typeof options.viewUrl === 'string' && options.viewUrl.trim() ? options.viewUrl.trim() : DEFAULT_VIEW_URL
   IT2 = typeof options.it2Path === 'string' && options.it2Path.trim() ? options.it2Path.trim() : DEFAULT_IT2
+  SPRINTS_VIEW = typeof options.sprintsViewUrl === 'string' && options.sprintsViewUrl.trim() ? options.sprintsViewUrl.trim() : DEFAULT_SPRINTS_VIEW
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)

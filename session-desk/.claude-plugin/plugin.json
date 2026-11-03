@@ -1,6 +1,6 @@
 {
   "name": "session-desk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Session 總管：本機 Claude Code session（busy／idle／waiting）與指派給我的 Notion Sprint Board 卡，一個 pane 看完、跳轉、綁定、改狀態",
   "author": {
     "name": "Howard Chen"
@@ -53,6 +53,12 @@
       "type": "string",
       "title": "it2 路徑",
       "description": "iTerm2 的 it2 CLI 路徑，留空用 /Applications/iTerm.app/Contents/Resources/utilities/it2",
+      "default": ""
+    },
+    "sprintsViewUrl": {
+      "type": "string",
+      "title": "Sprints view 連結",
+      "description": "Sprints 資料庫上篩「Last／Current／Next」的 table view（view:// 或帶 ?v= 的網址）。留空用 Howard 的看板上的「Desk · Sprints」",
       "default": ""
     }
   }
