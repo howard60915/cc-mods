@@ -6,29 +6,9 @@
 2. **Notion Sprint Board 上哪些卡是我的？** 指派給我或 owner 有我、還沒結案的卡，依 Story 分組；可以在 Notion app 開、改 Status、用它開新 session。
 3. **哪個 session 在做哪張卡？** 兩邊綁在一起，session 關掉後還記得，Enter 就 resume 回來。
 
-```
-╭─ Sessions · 4 ──────────────────────────── ●2 ◐1 ○1 ─╮
-│ ▸ ◐ sales-tech-訂單歸因      waiting  dialog open  5m  │
-│       ~/work/acme-shop/.claude/worktrees/9403-order-attribution│
-│   ● Session 總管與 Notion 卡管理  busy          2m  ⧉ #9983 │
-│   ● 2038-cart-sync…     busy         40m        │
-│   ○ Pluto MCP 會員摘要與個人化推播 idle    1h ⇢bg        │
-╰───────────────────────────────────────────────────────╯
-╭─ 已關閉・有綁卡 · 1 ───────────────── Enter resume ─╮
-│   ⟲ 9981 預約回覆           closed   2d  ⧉ #9981       │
-╰───────────────────────────────────────────────────────╯
-╭─ notions · Sprint 36 · 6 ───────────────── 4m 前 ─╮
-│ ▍主動推播預約回覆 · 3                                │
-│   9983  dev   P2  [RD] 預約回覆送出、發送紀錄…        │
-│                     ⌁ Session 總管與 Notion 卡管理    │
-│ ▸ 9981  beta  P2  [RD] 預約回覆的設定、開關…          │
-│ ▍SHOPLINE 商品同步 · 2                               │
-│   10233 p-asg P2  SHOPLINE｜webhook 接收改走 ALB… ⚑待指派│
-╰───────────────────────────────────────────────────────╯
-── 已選 sales-tech-訂單歸因 · #9981 ───────────────────
- s: 傳訊息  p: 貼選取  m: 命名 │ o: 開卡片  t: 改狀態  n: 新 session
- b: 綁定 sales-tech-訂單歸因 ⇄ #9981 │ c: 看全部卡  v: 選 Sprint  r: 重整  a: 全部操作
-```
+![session-desk pane 總覽](docs/overview.png)
+
+> 圖是用 `docs/make-demo.py` 從真實畫面產生的（it2 抓文字、渲染、Chrome 截圖），改版面後跑一次就能更新。
 
 ## 安裝
 
@@ -95,6 +75,10 @@ mod 從計時器發的 Notion MCP 呼叫會被 Claude Code 的 auto mode 分類�
 
 ### 看狀態
 
+![Sessions 與已關閉區](docs/sessions.png)
+
+上圖：兩個 busy、四個 idle；選到的那列（▸）多一行顯示目錄；`⧉ #2041` 表示它綁著那張卡；`⇢bg` 是 park 出去的背景工作；`⌀` 對不到 iTerm2 分頁。下方「已關閉・有綁卡」是關掉但還綁著卡的 session，Enter 就 resume。
+
 | 符號 | 意思 |
 |---|---|
 | `●` busy | 正在跑 |
@@ -116,6 +100,10 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 
 ### 卡片
 
+![notions 區：依 Story 分組的卡片](docs/notions.png)
+
+上圖：卡片依 Story 分組；每列是卡號、狀態短寫、優先度、標題；`⚑待指派` 是 Assign 空著、只有 owner 列到你的卡；卡列下的 `⌁ …` 是綁著它的 session（「（已關閉）」表示那個 session 已經關了）。
+
 - notions 區依 **Story** 分組，組名是 Story 頁標題；沒 Story 的在最後一組。第一次載入組名可能短暫是 `Story xxxxxx`，標題抓回來就換掉。
 - 列：`卡號 狀態短寫 優先度 標題`。狀態短寫：`todo` Not started、`pend` Pending、`p-asg` Pending Assignment、`dev` In Development、`pr` PR Reviewing、`beta` Wait to Beta、`prod` Wait to Prod、`retst` PM Retest。`⚑待指派` 表示 Assign 是空的、只有 owner 列到你。
 - 選到卡（Enter 或點）後：**`o`** 在 Notion 桌面 app 開（`notion://`，app 不在就退回瀏覽器）、**`t`** 改 Status（跳選單，選完寫回 Notion）、**`n`** 在 iTerm2 開新分頁、同目錄起 `claude`，開場 prompt 就是這張卡。
@@ -128,6 +116,10 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 - 綁定存在 plugin store，所有 session 共用。session 關掉後移到「已關閉・有綁卡」，選到按 Enter 會在 iTerm2 開新分頁、回原目錄 `claude --resume <id>`（transcript 不在就只提示）。綁的卡 Done／Archived／改指派後自動清掉。
 
 ### 操作列
+
+![情境式操作列](docs/actions.png)
+
+上圖：選到一個 session 和一張卡時的操作列。標題線寫目前選了什麼；左組是 session 的操作、中間是卡片的、`u` 是因為這個 session 已綁著卡才出現；最右組永遠都在。
 
 情境式：選到 session 才列 session 的鍵，選到卡才列卡的，兩邊都選到才有 `b`。沒顯示的鍵按了沒反應。按 **`a`** 切成四行的完整清單（Session／卡片／綁定／檢視），再按一次回精簡。
 
@@ -180,3 +172,13 @@ claude plugin test .
 | `hooks/model.test.ts` | `claude plugin test` 跑的測試 |
 
 改完 `/reload-plugins` 看效果，commit 後 `git push`。
+
+### 重做 README 的 demo 圖
+
+```
+cd session-desk/docs
+python3 make-demo.py                 # 抓「目前 active 的 iTerm2 分頁」的 pane 畫面
+python3 make-demo.py --from pane-sample.txt   # 不抓畫面，用上次存的文字重畫
+```
+
+流程：`it2 session capture` 抓終端文字 → 依顯示欄寬切出 pane → `render.py` 依內容上色畫成 SVG → Chrome headless 以 2x 截成 PNG。先把 pane 開著、選一列 session 和一張卡再跑，圖才有選取與操作列。不用安裝任何套件（只靠 iTerm2 與 Chrome）。
