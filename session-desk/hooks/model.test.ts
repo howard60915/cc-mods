@@ -95,8 +95,8 @@ test('park 出去的工作與它的背景行程合成一列', async () => {
 })
 
 test('fallbackDirs：先拿掉 -後綴，再往上層', async () => {
-  expect(fallbackDirs('/Users/h/work/acme-shop-2041')).toEqual(['/Users/h/work/acme-shop', '/Users/h/work', '/Users/h', '/Users'])
-  expect(fallbackDirs('/Users/h/work/acme-shop-2041-b')).toEqual(['/Users/h/work/acme-shop-2041', '/Users/h/work/acme-shop', '/Users/h/work', '/Users/h', '/Users'])
-  expect(fallbackDirs('/Users/h/work/acme-shop')).toEqual(['/Users/h/work', '/Users/h', '/Users'])
+  expect(fallbackDirs('/Users/h/work/acme-shop-2041')).toEqual(['/Users/h/work/acme-shop', '/Users/h/work/acme', '/Users/h/work', '/Users/h', '/Users'])
+  expect(fallbackDirs('/Users/h/work/acme-shop-2041-b')).toEqual(['/Users/h/work/acme-shop-2041', '/Users/h/work/acme-shop', '/Users/h/work/acme', '/Users/h/work', '/Users/h', '/Users'])
+  expect(fallbackDirs('/Users/h/work/acme-shop')).toEqual(['/Users/h/work/acme', '/Users/h/work', '/Users/h', '/Users'])
   expect(fallbackDirs('/')).toEqual([])
 })
