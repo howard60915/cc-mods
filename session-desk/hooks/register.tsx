@@ -932,7 +932,7 @@ export const register: Register = (on, options) => {
             </Button>
           </Box>
           <Box paddingX={1}>
-            <Text {...dimProps}>{e.props.isFocused ? 'Enter 送出 · \\ 加 Enter 換行 · 送出空白或 Tab 到「取消」＝不送' : 'ctrl+shift+d 進來打字'}</Text>
+            <Text {...dimProps}>{e.props.isFocused ? 'Enter 送出 · \\ 加 Enter 換行 · 送出空白或 Tab 到「取消」＝不送' : 'ctrl+x tab 或點一下進來打字'}</Text>
           </Box>
         </Box>
       )

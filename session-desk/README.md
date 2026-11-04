@@ -78,6 +78,32 @@ mod 從計時器發的 Notion MCP 呼叫會被 Claude Code 的 auto mode 分類�
 - 鍵盤要進 pane：`ctrl+x tab`。想要單鍵可以在 `~/.claude/keybindings.json` 加 `{"context":"Chat","bindings":{"ctrl+shift+d":"abovePrompt:focus"}}`。
 - `Esc` 回輸入框、`ctrl+x x` 關 pane、`ctrl+x ←／→` 調寬度。滑鼠點列也可以。
 
+### 快捷鍵一覽
+
+pane 拿到鍵盤後才有效。操作列是情境式的：沒選到對象的鍵不會顯示、按了也沒反應，`a` 可以切成完整清單。
+
+| 鍵 | 對象 | 做什麼 |
+|---|---|---|
+| `↑` `↓` `Tab` | — | 在列與按鈕間移動 |
+| `Enter` | session／卡 | 只選取（列首出現 ▸）；已選到的 session 再按一次＝跳過去（已關閉的＝resume） |
+| `j` | 選到的 session | 跳到它的 iTerm2 分頁；已關閉的 session 則開新分頁 `claude --resume` |
+| `s` | 選到的活 session | 切成「傳訊息」畫面，Enter 送出、`\` 加 Enter 換行、送出空白或 Tab 到「取消」＝不送 |
+| `p` | 選到的活 session | 把滑鼠選取的文字帶進傳訊息畫面（註明來源），可補說明再送 |
+| `m` | 選到的 session | 取別名（pane、iTerm2 分頁名跟著改；留空清掉） |
+| `o` | 選到的卡 | 在 Notion 桌面 app 開（沒 app 退回瀏覽器） |
+| `t` | 選到的卡 | 改 Status（選單；要放行 `notion-update-page` 才寫得回去） |
+| `n` | 選到的卡 | 在 iTerm2 開新分頁、同目錄起 `claude`，開場 prompt 就是這張卡 |
+| `b` | session＋卡都選到 | 綁定；已綁別張時變「改綁」 |
+| `u` | 綁著卡的 session | 解除綁定 |
+| `c` | — | 「本 Sprint」與「全部卡」切換 |
+| `v` | — | 選單挑特定 Sprint |
+| `r` | — | 強制重抓卡片與 Sprint／Story 標題 |
+| `a` | — | 操作列精簡／完整清單切換 |
+| `Esc` | — | 把鍵盤還給輸入框（pane 留著） |
+| `ctrl+x tab` | — | 鍵盤進 pane（或自己綁的快捷鍵，例如上面的 `ctrl+shift+d`） |
+| `ctrl+x x` | — | 關 pane |
+| `ctrl+x ←／→` | — | 調 pane 寬度 |
+
 ### 看狀態
 
 ![Sessions 與已關閉區](docs/sessions.png)
@@ -112,7 +138,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 
 - notions 區依 **Story** 分組，組名是 Story 頁標題；沒 Story 的在最後一組。第一次載入組名可能短暫是 `Story xxxxxx`，標題抓回來就換掉。
 - 列：`卡號 狀態短寫 優先度 標題`。狀態短寫：`todo` Not started、`pend` Pending、`p-asg` Pending Assignment、`dev` In Development、`pr` PR Reviewing、`beta` Wait to Beta、`prod` Wait to Prod、`retst` PM Retest。`⚑待指派` 表示 Assign 是空的、只有 owner 列到你。
-- 選到卡（Enter 或點）後：**`o`** 在 Notion 桌面 app 開（`notion://`，app 不在就退回瀏覽器）、**`t`** 改 Status（跳選單，選完寫回 Notion）、**`n`** 在 iTerm2 開新分頁、同目錄起 `claude`，開場 prompt 就是這張卡。
+- 選到卡（Enter 或點）後：**`o`** 在 Notion 桌面 app 開（`notion://`，app 不在就退回瀏覽器）、**`t`** 改 Status（跳選單，選完寫回 Notion；需要在 `permissions.allow` 放行 `mcp__plugin_Notion_notion__notion-update-page`，沒放行會被 auto mode 擋下）、**`n`** 在 iTerm2 開新分頁、同目錄起 `claude`，開場 prompt 就是這張卡。
 - 範圍：**`c`** 在「本 Sprint」與「全部」間切換；**`v`** 跳選單挑特定 Sprint（名單是你卡上出現過的 Sprint）。**`r`** 強制重抓卡片與 Sprint／Story 標題。
 
 ### 綁定：哪個 session 在做哪張卡
