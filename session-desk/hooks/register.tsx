@@ -582,9 +582,16 @@ async function sendTo($: Engine, text: string): Promise<void> {
   }
   try {
     const sent = await $.session.send({ to: { sessionId: target.sessionId }, text: body })
-    await note($, sent.isDelivered ? `✓ 已送給 ${displayName(target, a)}（${dw(body)} 字）` : `送不出去：${fit(sent.reason, 50)}`)
+    if (sent.isDelivered) {
+      await note($, `✓ 已送給 ${displayName(target, a)}（${dw(body)} 字）`)
+    } else {
+      dumpDebug($, { send: 'refused', to: target.sessionId, reason: sent.reason })
+      await note($, `送不出去：${fit(sent.reason, 120)}`)
+    }
   } catch (err) {
-    await note($, `送不出去：${fit(err instanceof Error ? err.message : String(err), 50)}`)
+    const msg = err instanceof Error ? err.message : String(err)
+    dumpDebug($, { send: 'threw', to: target.sessionId, error: msg })
+    await note($, `送不出去：${fit(msg, 120)}`)
   }
 }
 
