@@ -108,7 +108,7 @@ pane 拿到鍵盤後才有效。操作列是情境式的：沒選到對象的鍵
 
 ![Sessions 與已關閉區](docs/sessions.png)
 
-上圖：兩個 busy、四個 idle；選到的那列（▸）多一行顯示目錄；`⧉ #2041` 表示它綁著那張卡；`⇢bg` 是 park 出去的背景工作；`⌀` 對不到 iTerm2 分頁。下方「已關閉・有綁卡」是關掉但還綁著卡的 session，選到按 `j` 就 resume。
+上圖：兩個 busy、一個 waiting（後面寫它在等什麼）、兩個 idle；選到的那列（▸）多一行顯示目錄；`⧉ #2041` 表示它綁著那張卡；`⇢bg` 是 park 出去的背景工作；`⌀` 對不到 iTerm2 分頁。下方「已關閉・有綁卡」是關掉但還綁著卡的 session，選到按 `j` 就 resume。
 
 | 符號 | 意思 |
 |---|---|
@@ -152,7 +152,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 
 ![情境式操作列](docs/actions.png)
 
-上圖：選到一個 session 和一張卡時的操作列。標題線寫目前選了什麼；左組是 session 的操作、中間是卡片的、`u` 是因為這個 session 已綁著卡才出現；最右組永遠都在。
+上圖：選到一個 session 和一張卡時的操作列。標題線寫目前選了什麼；第一組是 session 的操作、第二組是卡片的、`u` 是因為這個 session 已綁著卡才出現；最後一組永遠都在。
 
 情境式：選到 session 才列 session 的鍵，選到卡才列卡的，兩邊都選到才有 `b`。沒顯示的鍵按了沒反應。按 **`a`** 切成四行的完整清單（Session／卡片／綁定／檢視），再按一次回精簡。
 
@@ -218,3 +218,5 @@ python3 make-demo.py --from pane-sample.txt   # 不抓畫面，用上次存的�
 ```
 
 流程：`it2 session capture` 抓終端文字 → 依顯示欄寬切出 pane → `render.py` 依內容上色畫成 SVG → Chrome headless 以 2x 截成 PNG。先把 pane 開著、選一列 session 和一張卡再跑，圖才有選取與操作列。不用安裝任何套件（只靠 iTerm2 與 Chrome）。
+
+**資料來源是 `pane-sample.txt`，內容是虛構的（acme-shop、#2041 之類），不是真實看板。** 不要用 `make-demo.py`（不帶 `--from`）抓真實畫面直接 commit：那會把公司 Notion 的卡號、標題、session 名寫進圖裡。要改示意內容就改 `pane-sample.txt`（每列要補空白到同一欄寬，CJK 算 2 格）再 `--from` 重畫。
