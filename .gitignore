@@ -1,3 +1,5 @@
 # 引擎每次載入 mod 都會重鋪的型別檔
 */.claude-plugin/types/
 .DS_Store
+# tsc 偶爾落下的編譯產物，引擎直接讀 .ts/.tsx
+*/hooks/*.js
