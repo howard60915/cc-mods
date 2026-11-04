@@ -86,6 +86,8 @@ let cardsTimer: { cancel: () => void } | undefined
 let retryTimer: { cancel: () => void } | undefined
 /** 本 session 剛被取的別名：下一個 prompt 送出時經 classic hook 回給引擎當 sessionTitle。 */
 let pendingTitle: string | undefined
+/** 上次已交給引擎的別名；別的 session 幫這個 session 取的別名也要在這裡接手，改過才再交一次。 */
+let appliedAlias: string | undefined
 /** 綁定記的目錄還在不在（worktree 可能已經 remove），每輪 refreshSessions 查一次。 */
 const dirAlive = new Map<string, boolean>()
 let pal: Palette = palette('Claude Code')
@@ -186,6 +188,13 @@ async function refreshSessions($: Engine): Promise<void> {
   // 綁定與別名存在 store，別的 session 也會改，每輪重讀。
   const a = await loadAliases($)
   await update($, aliases, () => a)
+  // 別名存在共用 store：不管是哪個 session 幫我取的，下一句 prompt 把它交給引擎當 session 名稱。
+  const mine = a[selfId]
+  if (mine && mine !== appliedAlias) {
+    const me = list.find(x => x.isSelf)
+    if (!me || me.name !== mine) pendingTitle = mine
+    appliedAlias = mine
+  }
   let b = await loadBindings($)
 
   // 活著的 session 搬了目錄或改了名，綁定跟著走（目錄要真的存在才信，registry 有時還記著刪掉的 worktree）。
@@ -624,8 +633,11 @@ async function rename($: Engine, name: string): Promise<void> {
   }
   // iTerm2 分頁名跟著改；本 session 另外在下一個 prompt 回 sessionTitle 給引擎
   if (live?.iterm) await it2(['session', 'set-name', trimmed, '--session', live.iterm], $)
-  if (live?.isSelf) pendingTitle = trimmed
-  await note($, live?.isSelf ? `已命名 ${trimmed}（Claude 的名稱在下一句送出後跟上）` : `已命名 ${trimmed}`)
+  if (live?.isSelf) {
+    pendingTitle = trimmed
+    appliedAlias = trimmed
+  }
+  await note($, live ? `已命名 ${trimmed}（那個 session 下一句 prompt 送出後，Claude 自己的名稱也會跟上）` : `已命名 ${trimmed}`)
 }
 
 /** 開傳訊息對話框：把要帶的文字放進草稿，Desk pane 整個換成傳訊息畫面。 */

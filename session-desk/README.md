@@ -128,7 +128,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 - **`s` 傳訊息**：Desk 整個 pane 換成「傳訊息」畫面，上面寫收件 session 的名稱、路徑與忙閒狀態，下面是多行輸入框。Enter 送出、`\` 加 Enter 換行；要取消就送出空白，或 Tab 到「取消」按 Enter。對方把它當一則 peer 訊息排進對話，回覆會回來；結果顯示在 Desk 最下面的提示列。
 - **`p` 貼選取**：先用滑鼠在對話區選一段文字（錯誤、log、結論），再選到目標 session 按 `p`，同一個畫面打開並已帶入那段文字（註明來源），可以在後面補一句說明再送。選取只在按鍵當下有效，中間別按別的鍵。
 - 收件 session 的權限模式跟你不同時，引擎會把訊息扣住等對方批准，對方畫面上會看到一則待批准的跨 session 訊息；這邊仍顯示「已送給」。
-- **`m` 命名**：取別名，pane 顯示、iTerm2 分頁名都跟著改；命名的是這個 session 本身時，下一句 prompt 送出後 Claude 自己的 session 名稱也會改。留空送出清掉別名。
+- **`m` 命名**：取別名，pane 立刻顯示。Claude 自己的 session 名稱（終端分頁標題、`claude --resume` 清單、其他 session 看到的名字）要等**那個 session 下一句 prompt 送出**才會跟上：別名存在所有 session 共用的 store，每個 session 的 mod 會認領自己的別名，在下一次 prompt 時交給引擎。所以閒著沒再對話的 session 名稱不會變，被命名的 session 是背景工作也一樣。留空送出清掉別名（Claude 的名稱不會自動改回）。
 
 ### 卡片
 
