@@ -2,9 +2,9 @@
 
 一個開在 Claude Code 右側的 pane，回答三個問題：
 
-1. **這台機器上哪些 Claude Code session 在跑、誰在等我？** busy／idle／waiting 一眼看完，Enter 直接跳到那個 iTerm2 分頁，或把一段 context 送過去。
+1. **這台機器上哪些 Claude Code session 在跑、誰在等我？** busy／idle／waiting 一眼看完，`j` 直接跳到那個 iTerm2 分頁，或把一段 context 送過去。
 2. **Notion Sprint Board 上哪些卡是我的？** 指派給我或 owner 有我、還沒結案的卡，依 Story 分組；可以在 Notion app 開、改 Status、用它開新 session。
-3. **哪個 session 在做哪張卡？** 兩邊綁在一起，session 關掉後還記得，Enter 就 resume 回來。
+3. **哪個 session 在做哪張卡？** 兩邊綁在一起，session 關掉後還記得，`j` 就 resume 回來。
 
 ![session-desk pane 總覽](docs/overview.png)
 
@@ -82,7 +82,7 @@ mod 從計時器發的 Notion MCP 呼叫會被 Claude Code 的 auto mode 分類�
 
 ![Sessions 與已關閉區](docs/sessions.png)
 
-上圖：兩個 busy、四個 idle；選到的那列（▸）多一行顯示目錄；`⧉ #2041` 表示它綁著那張卡；`⇢bg` 是 park 出去的背景工作；`⌀` 對不到 iTerm2 分頁。下方「已關閉・有綁卡」是關掉但還綁著卡的 session，Enter 就 resume。
+上圖：兩個 busy、四個 idle；選到的那列（▸）多一行顯示目錄；`⧉ #2041` 表示它綁著那張卡；`⇢bg` 是 park 出去的背景工作；`⌀` 對不到 iTerm2 分頁。下方「已關閉・有綁卡」是關掉但還綁著卡的 session，選到按 `j` 就 resume。
 
 | 符號 | 意思 |
 |---|---|
@@ -90,17 +90,18 @@ mod 從計時器發的 Notion MCP 呼叫會被 Claude Code 的 auto mode 分類�
 | `◐` waiting | 在等你（後面接在等什麼，例如 `dialog open`） |
 | `○` idle | 閒著，後面是閒了多久 |
 | `⇢bg` | 這是 park 出去的背景工作，已和它的互動層合成一列；選到會多一行寫互動層在等 |
-| `⌀` | 對不到 iTerm2 分頁，Enter 跳不過去 |
+| `⌀` | 對不到 iTerm2 分頁，`j` 跳不過去 |
 | `⧉ #9983` | 這個 session 綁著那張卡 |
-| `⟲ … closed` | 已關閉但還綁著卡的 session，Enter 開新分頁 `claude --resume` |
+| `⟲ … closed` | 已關閉但還綁著卡的 session，`j` 開新分頁 `claude --resume` |
 
 waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名 > `/rename` 取的 > iTerm2 分頁標題（Claude 自動產生的 session title）> 系統派的 `pluto-ff`。
 
 ### 跳過去、傳 context
 
-- 方向鍵選到 session 按 **Enter**：切到它的 iTerm2 分頁。
-- **`s` 傳訊息**：底下出現輸入框，Enter 送出，對方把它當一則 peer 訊息排進對話，回覆會回來。
-- **`p` 貼選取**：先用滑鼠在對話區選一段文字（錯誤、log、結論），再選到目標 session 按 `p`，整段送過去並註明來源。選取只在按鍵當下有效，中間別按別的鍵。
+- 方向鍵走到 session 按 **Enter**：只是選取（列首出現 ▸），不會跳走；已選到的那列再按一次 Enter，或按 **`j`**，才切到它的 iTerm2 分頁。
+- **`s` 傳訊息**：Desk 整個 pane 換成「傳訊息」畫面，上面寫收件 session 的名稱、路徑與忙閒狀態，下面是多行輸入框。Enter 送出、`\` 加 Enter 換行；要取消就送出空白，或 Tab 到「取消」按 Enter。對方把它當一則 peer 訊息排進對話，回覆會回來；結果顯示在 Desk 最下面的提示列。
+- **`p` 貼選取**：先用滑鼠在對話區選一段文字（錯誤、log、結論），再選到目標 session 按 `p`，同一個畫面打開並已帶入那段文字（註明來源），可以在後面補一句說明再送。選取只在按鍵當下有效，中間別按別的鍵。
+- 收件 session 的權限模式跟你不同時，引擎會把訊息扣住等對方批准，對方畫面上會看到一則待批准的跨 session 訊息；這邊仍顯示「已送給」。
 - **`m` 命名**：取別名，pane 顯示、iTerm2 分頁名都跟著改；命名的是這個 session 本身時，下一句 prompt 送出後 Claude 自己的 session 名稱也會改。留空送出清掉別名。
 
 ### 卡片
@@ -118,7 +119,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 
 - 選一個活著的 session（Enter）和一張卡（Enter），按 **`b`**。session 列尾出現 `⧉ #卡號`，卡列下出現 `⌁ session 名`。已綁別張時 `b` 變成「改綁」。
 - **`u`** 解除。
-- 綁定存在 plugin store，所有 session 共用。session 關掉後移到「已關閉・有綁卡」，選到按 Enter 會在 iTerm2 開新分頁、回原目錄 `claude --resume <id>`（transcript 不在就只提示）。綁的卡 Done／Archived／改指派後自動清掉。
+- 綁定存在 plugin store，所有 session 共用。session 關掉後移到「已關閉・有綁卡」，選到按 `j`（或再按一次 Enter）會在 iTerm2 開新分頁、回原目錄 `claude --resume <id>`（transcript 不在就只提示）。綁的卡 Done／Archived／改指派後自動清掉。
 
 ### 操作列
 
@@ -150,7 +151,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 | 卡片區標題一直是「全部」、`c` 切不到本 Sprint | Sprints view 查不到（`notion-query-data-sources` 沒放行，或 view 連結填錯）。放行後 `r`。 |
 | 組名停在 `Story xxxxxx` | `notion-search` 沒放行，且那頁大到讀不完（例如「[Support] 維運 / Bug issues」）；放行 search 後 `r`。 |
 | pane 開不出來 | 終端寬度不到 144 欄時不會自動開；打 `/desk` 可在 110 欄以上強制開。 |
-| session 列有 `⌀`、Enter 跳不過去 | 不是 iTerm2，或 `it2` 路徑不對（設定可改）。 |
+| session 列有 `⌀`、`j` 跳不過去 | 不是 iTerm2，或 `it2` 路徑不對（設定可改）。 |
 | 按 `t` 改狀態被擋 | `notion-update-page` 是寫入工具，預設沒放行；要用就加進 `permissions.allow`。 |
 | `s`／`p` 顯示「送不出去」 | 對方 session 已關，或這就是目前的 session。 |
 | 改完程式重載後畫面掛掉、提示 `ui.render hook skipped` | 多半是 plugin store 裡的舊快取形狀不合；程式裡快取鍵帶版號，改卡片形狀時把 `cardsCache-vN` 的 N 加一。 |

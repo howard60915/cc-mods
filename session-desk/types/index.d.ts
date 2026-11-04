@@ -99,6 +99,10 @@ export type Selection = {
   /** 最下面一行的提示。 */
   note: string
   noteAt: number
+  /** 傳訊息對話框開啟時預先帶入的文字（貼選取用）。 */
+  draft: string
+  /** 每開一次對話框加一，讓輸入框重新掛載吃到新的 draft。 */
+  sendSeq: number
 }
 
 declare module 'claude-code' {

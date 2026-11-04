@@ -73,8 +73,8 @@ const bindings = atom({ plugin: 'session-desk', key: 'bindings' } as const, {} a
 const aliases = atom({ plugin: 'session-desk', key: 'aliases' } as const, {} as Aliases)
 const sel = atom(
   { plugin: 'session-desk', key: 'sel' } as const,
-  { picking: false, naming: false, sending: false, showAll: false, pickingSprint: false, note: '', noteAt: 0 } as Selection,
-  { shape: 'sel-5' },
+  { picking: false, naming: false, sending: false, showAll: false, pickingSprint: false, note: '', noteAt: 0, draft: '', sendSeq: 0 } as Selection,
+  { shape: 'sel-6' },
 )
 const tick = atom({ plugin: 'session-desk', key: 'tick' } as const, 0)
 
@@ -476,6 +476,28 @@ async function it2(argv: string[], $: Engine): Promise<string | undefined> {
   }
 }
 
+/** Enter 在 session 列上：第一次只選取，已選到的再按一次才跳過去。 */
+async function pickSession($: Engine, s: DeskSession, a: Aliases): Promise<void> {
+  const cur = await read($, sel)
+  if (cur.sessionId === s.sessionId) {
+    await focusSession($, s, a)
+    return
+  }
+  await update($, sel, x => ({ ...x, sessionId: s.sessionId, picking: false, naming: false, sending: false }))
+  await note($, s.isSelf ? `選到 ${displayName(s, a)}（就是這個視窗）` : `選到 ${displayName(s, a)}，再按 Enter 或 j 跳過去`)
+}
+
+/** Enter 在已關閉的 session 列上：第一次只選取，再按一次才 resume。 */
+async function pickClosed($: Engine, id: string, b: Binding): Promise<void> {
+  const cur = await read($, sel)
+  if (cur.sessionId === id) {
+    await resumeSession($, id, b)
+    return
+  }
+  await update($, sel, x => ({ ...x, sessionId: id, picking: false, naming: false, sending: false }))
+  await note($, `選到 ${b.name}（已關閉），再按 Enter 或 j 開新分頁 resume`)
+}
+
 async function focusSession($: Engine, s: DeskSession, a: Aliases): Promise<void> {
   await update($, sel, x => ({ ...x, sessionId: s.sessionId, picking: false, naming: false }))
   const name = displayName(s, a)
@@ -563,11 +585,36 @@ async function rename($: Engine, name: string): Promise<void> {
   await note($, live?.isSelf ? `已命名 ${trimmed}（Claude 的名稱在下一句送出後跟上）` : `已命名 ${trimmed}`)
 }
 
+/** 開傳訊息對話框：把要帶的文字放進草稿，Desk pane 整個換成傳訊息畫面。 */
+async function openSendPane($: Engine, prefill = ''): Promise<void> {
+  const s = await read($, sel)
+  const list = await read($, sessions)
+  const target = list.find(x => x.sessionId === s.sessionId)
+  if (!target) {
+    await note($, s.sessionId ? '這個 session 沒在跑，送不過去' : '先選一個活著的 session')
+    return
+  }
+  if (target.isSelf) {
+    await note($, '這就是目前的 session，選別的')
+    return
+  }
+  await update($, sel, x => ({ ...x, sending: true, naming: false, picking: false, pickingSprint: false, draft: prefill, sendSeq: (x.sendSeq ?? 0) + 1 }))
+}
+
+/** 關掉傳訊息對話框，不送。 */
+async function cancelSend($: Engine): Promise<void> {
+  await update($, sel, x => ({ ...x, sending: false, draft: '' }))
+  await note($, '取消傳訊息')
+}
+
 /** 送一段文字給選到的 session（活著、不是自己）。對方會把它當 peer 訊息排進對話。 */
 async function sendTo($: Engine, text: string): Promise<void> {
-  await update($, sel, x => ({ ...x, sending: false }))
+  await update($, sel, x => ({ ...x, sending: false, draft: '' }))
   const body = text.trim()
-  if (!body) return
+  if (!body) {
+    await note($, '沒有內容，取消傳訊息')
+    return
+  }
   const s = await read($, sel)
   const list = await read($, sessions)
   const a = await read($, aliases)
@@ -595,7 +642,7 @@ async function sendTo($: Engine, text: string): Promise<void> {
   }
 }
 
-/** 把滑鼠選取的那段文字送給選到的 session。 */
+/** 把滑鼠選取的那段文字帶進傳訊息對話框，讓人補一句再送。 */
 async function pasteSelection($: Engine): Promise<void> {
   const picked = await $.ui.selection()
   if (!picked || !picked.text.trim()) {
@@ -605,7 +652,7 @@ async function pasteSelection($: Engine): Promise<void> {
   const me = (await read($, sessions)).find(x => x.isSelf)
   const a = await read($, aliases)
   const from = me ? displayName(me, a) : 'Desk'
-  await sendTo($, `（從 ${from} 轉貼的 context）\n${picked.text}`)
+  await openSendPane($, `（從 ${from} 轉貼的 context）\n${picked.text.trim()}\n\n`)
 }
 
 /** 在 Notion 桌面 app 開卡（notion:// 協定），app 不在就退回瀏覽器。 */
@@ -736,14 +783,15 @@ export const register: Register = (on, options) => {
     const dimProps = pal.muted ? { color: pal.muted } : { dimColor: true }
     const textProps = pal.text ? { color: pal.text } : {}
     const header = (title: string, count: string, right?: readonly { text: string; color?: string }[]) => {
-      const left = `╭─ ${title} · ${count} `
+      const countText = count ? ` · ${count} ` : ' '
+      const left = `╭─ ${title}${countText}`
       const rightText = right && right.length > 0 ? ` ${right.map(r => r.text).join(' ')} ` : ''
       const fill = Math.max(1, width - dw(left) - dw(rightText) - 2)
       return (
         <Box width={width} overflow="hidden">
           <Text color={pal.border}>╭─ </Text>
           <Text bold {...textProps}>{title}</Text>
-          <Text {...dimProps}> · {count} </Text>
+          <Text {...dimProps}>{countText}</Text>
           <Text color={pal.border}>{'─'.repeat(fill)}</Text>
           {right && right.length > 0 && (
             <Text>
@@ -809,6 +857,44 @@ export const register: Register = (on, options) => {
             </Box>
           )
             }
+
+    if (Input && s.sending && selected && !selected.isSelf) {
+      const statusText = selected.status === 'busy' ? '忙碌中，訊息會排到它下一輪' : selected.status === 'waiting' ? `等你：${selected.waitingFor ?? ''}` : '閒置，會馬上處理'
+      const draftLines = s.draft ? s.draft.split('\n').length : 0
+      return (
+        <Box flexDirection="column">
+          {header('傳訊息', '', [])}
+          <Box paddingX={1}>
+            <Text bold color={pal.accent}>傳給 </Text>
+            <Text bold>{fit(displayName(selected, a), inner - 24)}</Text>
+            <Text {...dimProps}>{`  ${fit(shortPath(selected.cwd, home), 20)}`}</Text>
+          </Box>
+          <Box paddingX={1}>
+            <Text {...dimProps}>{statusText}{draftLines > 1 ? `　· 已帶入 ${draftLines} 行選取文字，可在後面補說明` : ''}</Text>
+          </Box>
+          <Box marginTop={1} paddingX={1} flexDirection="column">
+            <Input
+              key={`draft-${s.sendSeq ?? 0}`}
+              value={s.draft ?? ''}
+              placeholder="要交給那個 session 的 context、指示或交接內容"
+              rows={Math.min(10, Math.max(6, draftLines + 3))}
+              submitLabel="送出"
+              autoFocus
+              onSubmit={value => void sendTo($, value)}
+            />
+          </Box>
+          <Box marginTop={1} paddingX={1}>
+            <Button key="send-cancel" plain hotkey="q" onPress={() => void cancelSend($)}>
+              <Text {...dimProps}>取消</Text>
+            </Button>
+          </Box>
+          <Box paddingX={1}>
+            <Text {...dimProps}>{e.props.isFocused ? 'Enter 送出 · \\ 加 Enter 換行 · 送出空白或 Tab 到「取消」＝不送' : 'ctrl+shift+d 進來打字'}</Text>
+          </Box>
+        </Box>
+      )
+    }
+
     return (
       <Box flexDirection="column">
         {header('Sessions', String(list.length), [
@@ -823,7 +909,7 @@ export const register: Register = (on, options) => {
           const tone = statusTone(ss.status)
           const detail = ss.status === 'waiting' && ss.waitingFor ? `${fit(ss.waitingFor, 14)} ` : ''
           const line = row(
-            <Button key={`s:${ss.sessionId}`} plain onPress={() => void focusSession($, ss, a)}>
+            <Button key={`s:${ss.sessionId}`} plain onPress={() => void pickSession($, ss, a)}>
               <Text color={pal.accent}>{picked ? '▸ ' : '  '}</Text>
               <Text color={tone}>{statusGlyph(ss.status)} </Text>
               <Text bold={ss.isSelf} color={picked ? pal.accent : pal.text}>{padTo(displayName(ss, a), nameW)} </Text>
@@ -860,7 +946,7 @@ export const register: Register = (on, options) => {
           const picked = s.sessionId === id
           const name = a[id] ?? bound.name ?? id.slice(0, 6)
           return row(
-            <Button key={`z:${id}`} plain onPress={() => void resumeSession($, id, bound)}>
+            <Button key={`z:${id}`} plain onPress={() => void pickClosed($, id, bound)}>
               <Text color={pal.accent}>{picked ? '▸ ' : '  '}</Text>
               <Text color={pal.closed}>⟲ </Text>
               <Text color={picked ? pal.accent : pal.closed}>{padTo(name || id.slice(0, 6), nameW)} </Text>
@@ -946,19 +1032,6 @@ export const register: Register = (on, options) => {
           </Box>
         )}
 
-        {Input && s.sending && selected && !selected.isSelf && (
-          <Box marginTop={1} flexDirection="column">
-            <Input
-              key="send"
-              label={`傳給 ${displayName(selected, a)}`}
-              placeholder="要給那個 session 的 context 或指示，Enter 送出"
-              rows={3}
-              autoFocus
-              onSubmit={value => void sendTo($, value)}
-            />
-          </Box>
-        )}
-
         {Input && s.naming && s.sessionId && (selected || selectedClosed) && (
           <Box marginTop={1} flexDirection="column">
             <Input
@@ -986,7 +1059,9 @@ export const register: Register = (on, options) => {
             )
           }
           const sessionOps = group([
-            selected && !selected.isSelf && key('s', '傳訊息', () => void update($, sel, x => ({ ...x, sending: !x.sending, naming: false, picking: false, pickingSprint: false }))),
+            selected && !selected.isSelf && key('j', '跳過去', () => void focusSession($, selected, a)),
+            selectedClosed && key('j', 'resume', () => void resumeSession($, selectedClosed[0], selectedClosed[1])),
+            selected && !selected.isSelf && key('s', '傳訊息', () => void openSendPane($)),
             selected && !selected.isSelf && key('p', '貼選取', () => void pasteSelection($)),
             (selected || selectedClosed) && key('m', '命名', () => void update($, sel, x => ({ ...x, naming: !x.naming, picking: false, sending: false, pickingSprint: false }))),
           ])
@@ -1038,7 +1113,8 @@ export const register: Register = (on, options) => {
                 <Box>
                   <Text {...dimProps}>{padTo('Session', 8)}</Text>
                   {all([
-                    ['s', '傳訊息', selected && !selected.isSelf ? () => void update($, sel, x => ({ ...x, sending: !x.sending, naming: false, picking: false, pickingSprint: false })) : noop('先選一個活著的 session')],
+                    ['j', '跳過去', selected && !selected.isSelf ? () => void focusSession($, selected, a) : selectedClosed ? () => void resumeSession($, selectedClosed[0], selectedClosed[1]) : noop('先選一個 session')],
+                    ['s', '傳訊息', selected && !selected.isSelf ? () => void openSendPane($) : noop('先選一個活著的 session')],
                     ['p', '貼選取', () => void pasteSelection($)],
                     ['m', '命名', selected || selectedClosed ? () => void update($, sel, x => ({ ...x, naming: !x.naming, picking: false, sending: false, pickingSprint: false })) : noop('先選一個 session')],
                   ])}
@@ -1080,7 +1156,7 @@ export const register: Register = (on, options) => {
             </Box>
           )
         })()}
-        <Text {...dimProps}>{s.note && now - s.noteAt < 20_000 ? s.note : e.props.isFocused ? 'Enter 跳過去／resume／選卡 · o 在 Notion 開 · Esc 回到輸入框' : 'ctrl+x tab 或點一下進來操作'}</Text>
+        <Text {...dimProps}>{s.note && now - s.noteAt < 20_000 ? s.note : e.props.isFocused ? 'Enter 選取（再按一次跳過去／resume）· j 跳過去 · o 在 Notion 開 · Esc 回到輸入框' : 'ctrl+x tab 或點一下進來操作'}</Text>
       </Box>
     )
   })
@@ -1089,6 +1165,7 @@ export const register: Register = (on, options) => {
     if (e.origin.kind === 'unload' && cardsTimer) cardsTimer.cancel()
     return next(e)
   })
+
 }
 
 function statusColor(status: string): string | undefined {
