@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { age, cleanTabTitle, fit, mergeParked, normalizeBinding, notionId, parseIt2List, parsePs, parseSessionJson, preferredName, shellQuote, toCard, transcriptPath, unescapeTitle } from './model'
+import { age, cleanTabTitle, fallbackDirs, fit, mergeParked, normalizeBinding, notionId, parseIt2List, parsePs, parseSessionJson, preferredName, shellQuote, toCard, transcriptPath, unescapeTitle } from './model'
 
 test('it2 session list：tty 對到 iTerm2 session id', async () => {
   const out = [
@@ -92,4 +92,11 @@ test('park 出去的工作與它的背景行程合成一列', async () => {
   expect(merged.iterm).toBe('ITERM-3')
   expect(merged.parked?.sessionId).toBe('shell')
   expect(merged.parked?.status).toBe('idle')
+})
+
+test('fallbackDirs：先拿掉 -後綴，再往上層', async () => {
+  expect(fallbackDirs('/Users/h/work/acme-shop-2041')).toEqual(['/Users/h/work/acme-shop', '/Users/h/work', '/Users/h', '/Users'])
+  expect(fallbackDirs('/Users/h/work/acme-shop-2041-b')).toEqual(['/Users/h/work/acme-shop-2041', '/Users/h/work/acme-shop', '/Users/h/work', '/Users/h', '/Users'])
+  expect(fallbackDirs('/Users/h/work/acme-shop')).toEqual(['/Users/h/work', '/Users/h', '/Users'])
+  expect(fallbackDirs('/')).toEqual([])
 })

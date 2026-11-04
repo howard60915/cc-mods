@@ -120,6 +120,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 - 選一個活著的 session（Enter）和一張卡（Enter），按 **`b`**。session 列尾出現 `⧉ #卡號`，卡列下出現 `⌁ session 名`。已綁別張時 `b` 變成「改綁」。
 - **`u`** 解除。
 - 綁定存在 plugin store，所有 session 共用。session 關掉後移到「已關閉・有綁卡」，選到按 `j`（或再按一次 Enter）會在 iTerm2 開新分頁、回原目錄 `claude --resume <id>`（transcript 不在就只提示）。綁的卡 Done／Archived／改指派後自動清掉。
+- 綁定記的名稱與目錄會跟著活著的 session 走：session 改名（含別名）或搬到新 worktree，下一輪重整就更新。目錄已經刪掉（`git worktree remove`）的綁定，列尾標「目錄已刪」；resume 時自動退回最近的上層或去掉 `-後綴` 的主 repo（例如 `acme-shop-2041` → `pluto`），transcript 仍在原目錄的紀錄裡，從別的目錄 `--resume` 一樣找得到。
 
 ### 操作列
 

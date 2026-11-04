@@ -12,6 +12,7 @@ import type { It2Tab } from './model'
 import {
   STATUSES,
   age,
+  fallbackDirs,
   fit,
   mergeParked,
   normalizeBinding,
@@ -85,6 +86,8 @@ let cardsTimer: { cancel: () => void } | undefined
 let retryTimer: { cancel: () => void } | undefined
 /** 本 session 剛被取的別名：下一個 prompt 送出時經 classic hook 回給引擎當 sessionTitle。 */
 let pendingTitle: string | undefined
+/** 綁定記的目錄還在不在（worktree 可能已經 remove），每輪 refreshSessions 查一次。 */
+const dirAlive = new Map<string, boolean>()
 let pal: Palette = palette('Claude Code')
 let autoOpen = true
 /** Notion 上「指派給我、未結案」的 view（view 模式查詢不吃方案配額）。 */
@@ -181,11 +184,44 @@ async function refreshSessions($: Engine): Promise<void> {
   await update($, sessions, () => list)
 
   // 綁定與別名存在 store，別的 session 也會改，每輪重讀。
-  const b = await loadBindings($)
-  await update($, bindings, () => b)
   const a = await loadAliases($)
   await update($, aliases, () => a)
+  let b = await loadBindings($)
+
+  // 活著的 session 搬了目錄或改了名，綁定跟著走（目錄要真的存在才信，registry 有時還記著刪掉的 worktree）。
+  const drift: Bindings = {}
+  for (const live of list) {
+    const bound = b[live.sessionId]
+    if (!bound) continue
+    const name = displayName(live, a)
+    const cwdOk = live.cwd && live.cwd !== bound.cwd && (await $.fs.exists(live.cwd))
+    if (cwdOk || name !== bound.name) drift[live.sessionId] = { ...bound, name, cwd: cwdOk ? live.cwd : bound.cwd }
+  }
+  if (Object.keys(drift).length > 0) {
+    await saveBindings($, cur => ({ ...cur, ...drift }))
+    b = await loadBindings($)
+  }
+  await update($, bindings, () => b)
+
+  // 綁定的目錄還在不在，畫面標「目錄已刪」、resume 時退回主 repo。
+  dirAlive.clear()
+  for (const cwd of new Set(Object.values(b).map(x => x.cwd).filter(Boolean))) {
+    try {
+      dirAlive.set(cwd, await $.fs.exists(cwd))
+    } catch {
+      dirAlive.set(cwd, true)
+    }
+  }
   await update($, tick, n => n + 1)
+}
+
+/** 綁定目錄不在時，往 fallbackDirs 找第一個存在的目錄。 */
+async function resumeDir($: Engine, cwd: string): Promise<{ dir: string; fellBack: boolean } | undefined> {
+  if (await $.fs.exists(cwd)) return { dir: cwd, fellBack: false }
+  for (const d of fallbackDirs(cwd)) {
+    if (await $.fs.exists(d)) return { dir: d, fellBack: true }
+  }
+  return undefined
 }
 
 function rank(s: DeskSession): number {
@@ -520,13 +556,20 @@ async function resumeSession($: Engine, id: string, b: Binding): Promise<void> {
     await note($, '這筆綁定沒記目錄（舊版綁的），無法 resume')
     return
   }
+  // transcript 存在原目錄的 slug 底下；目錄刪掉後從別的目錄 --resume 一樣找得到（實測 2.1.318）。
   if (!(await $.fs.exists(transcriptPath(home, b.cwd, id)))) {
     await note($, `找不到 ${b.name || id.slice(0, 6)} 的 transcript，無法 resume`)
     return
   }
-  const cmd = `cd ${shellQuote(b.cwd)} && exec claude --resume ${shellQuote(id)}`
+  const where = await resumeDir($, b.cwd)
+  if (!where) {
+    await note($, `${shortPath(b.cwd, home)} 已經不在，上層也找不到可用目錄，無法 resume`)
+    return
+  }
+  const cmd = `cd ${shellQuote(where.dir)} && exec claude --resume ${shellQuote(id)}`
   const err = await it2(['tab', 'new', '--command', `/bin/zsh -lc ${shellQuote(cmd)}`], $)
-  await note($, err ? `it2 tab new 失敗：${err}` : `⟲ 已開新分頁 resume ${b.name || id.slice(0, 6)}`)
+  const label = b.name || id.slice(0, 6)
+  await note($, err ? `it2 tab new 失敗：${err}` : where.fellBack ? `⟲ ${label} 原目錄已刪，改在 ${shortPath(where.dir, home)} resume` : `⟲ 已開新分頁 resume ${label}`)
 }
 
 async function bind($: Engine): Promise<void> {
@@ -927,7 +970,13 @@ export const register: Register = (on, options) => {
           return (
             <Box flexDirection="column">
               {line}
-              {row(<Text {...dimProps}>      {fit(shortPath(ss.cwd, home), inner - 6)}</Text>)}
+              {row(
+                <Text {...dimProps}>
+                  {'      '}
+                  {fit(shortPath(ss.cwd, home), inner - 14)}
+                  {dirAlive.get(ss.cwd) === false ? <Text color={pal.waiting}> 目錄已刪</Text> : ''}
+                </Text>,
+              )}
               {ss.parked &&
                 row(
                   <Text {...dimProps}>
@@ -952,8 +1001,9 @@ export const register: Register = (on, options) => {
               <Text color={picked ? pal.accent : pal.closed}>{padTo(name || id.slice(0, 6), nameW)} </Text>
               <Text color={pal.closed}>{'closed'.padEnd(8)}</Text>
               <Text {...dimProps}>
-                {bound.boundAt ? age(bound.boundAt, now).padStart(3) : '   '} {fit(shortPath(bound.cwd, home), Math.max(6, inner - nameW - 24))}
+                {bound.boundAt ? age(bound.boundAt, now).padStart(3) : '   '} {fit(shortPath(bound.cwd, home), Math.max(6, inner - nameW - 24 - (dirAlive.get(bound.cwd) === false ? 7 : 0)))}
               </Text>
+              {dirAlive.get(bound.cwd) === false && <Text color={pal.waiting}> 目錄已刪</Text>}
             </Button>,
             card ? <Text color={pal.ok}>⧉ #{card.taskId}</Text> : undefined,
           )

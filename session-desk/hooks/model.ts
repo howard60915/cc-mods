@@ -310,3 +310,22 @@ export function padTo(s: string, n: number): string {
   const cut = fit(s, n + 1)
   return cut + ' '.repeat(Math.max(0, n - dw(cut)))
 }
+
+/**
+ * 綁定的目錄不在了（worktree 刪掉）時可以退回的候選目錄，由近到遠：
+ * 先把最後一段的 `-後綴` 逐段拿掉（acme-shop-2041-x → acme-shop-2041 → pluto），再往上層走。
+ * 只產生候選，存不存在由呼叫端查。
+ */
+export function fallbackDirs(cwd: string): string[] {
+  const out: string[] = []
+  const parts = cwd.split('/').filter(Boolean)
+  if (parts.length === 0) return out
+  const parent = '/' + parts.slice(0, -1).join('/')
+  let last = parts[parts.length - 1]!
+  while (last.includes('-')) {
+    last = last.slice(0, last.lastIndexOf('-'))
+    if (last) out.push(parent === '/' ? `/${last}` : `${parent}/${last}`)
+  }
+  for (let i = parts.length - 1; i >= 1; i--) out.push('/' + parts.slice(0, i).join('/'))
+  return out
+}
