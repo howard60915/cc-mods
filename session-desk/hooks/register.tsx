@@ -47,7 +47,10 @@ const CARDS_MS = 5 * 60_000
 const CARDS_CACHE_MS = 4 * 60_000
 const RETRY_AFTER_FAIL_MS = 30_000
 /** Sprint 的 Current 狀態兩週才換一次，而 Sprint 頁掛著幾百張 Tasks（上百 KB），一天讀一次就夠；r 強制重整不受此限。 */
-const SPRINT_CACHE_MS = 24 * 3_600_000
+/** Sprint 是雙週一輪，一週查一次就夠；要立刻換用 r（隔 1 小時）。 */
+const SPRINT_CACHE_MS = 7 * 24 * 3_600_000
+/** r 強制重整時，Sprint 這份至少隔這麼久才再查：view 回傳 56 KB、每個 session 按 r 都會各查一次。 */
+const SPRINT_FORCE_MIN_MS = 60 * 60_000
 const SPRINT_FAIL_CACHE_MS = 30 * 60_000
 const STORE_BINDINGS = 'bindings'
 const STORE_ALIASES = 'aliases'
@@ -57,6 +60,7 @@ const STORE_SPRINTS = 'sprints'
 const STORE_STORIES = 'stories'
 /** Story (for Scrum) 資料庫：用 search 限定這個資料來源，一次拿回所有 Story 標題（回傳只有標題，很小）。 */
 const STORIES_DS = 'collection://1eb97d91-ff37-817e-bbea-000bf32af58a'
+// 不用 SQL／rows 模式：那是整個 Notion 工作區共用的額度（非 Business 方案），mod 不該吃團隊的；view 模式沒有方案額度。
 /** Claude Code 對 MCP 回傳有大小上限，超過時交給 mod 的是這段錯誤文字而不是內容。 */
 const OVERSIZED = /exceeds maximum allowed tokens/i
 const STORY_CACHE_MS = 24 * 3_600_000
@@ -323,14 +327,15 @@ async function pruneBindings($: Engine, list: Card[]): Promise<void> {
 
 /**
  * Sprint 的名稱與狀態：查 Sprints 的「Last／Current／Next」view（view 模式不吃配額，一次三筆），
- * 存 store 24 小時，所有 session 共用；r 強制重整才重查。不再 fetch 任何 Sprint 頁。
+ * 存 store 7 天，所有 session 共用；r 強制重整也要距上次超過 1 小時才重查。不再 fetch 任何 Sprint 頁。
  * 卡片掛的 Sprint 不在這三筆裡（更早的 Sprint）時只顯示 id，不另外去讀。
  */
 async function resolveSprint($: Engine, list: Card[], force = false): Promise<void> {
   const now = await $.clock.now()
   let known = ((await $.store.get(STORE_SPRINTS)) as Record<string, SprintInfo> | undefined) ?? {}
   const latest = Math.max(0, ...Object.values(known).map(v => v.at ?? 0))
-  if (force || now - latest >= SPRINT_CACHE_MS || Object.keys(known).length === 0) {
+  const stale = now - latest >= (force ? SPRINT_FORCE_MIN_MS : SPRINT_CACHE_MS)
+  if (stale || Object.keys(known).length === 0) {
     try {
       const res = await notion($, 'notion-query-data-sources', { data: { mode: 'view', view_url: SPRINTS_VIEW, page_size: 10 } })
       const text = firstText(res.content)

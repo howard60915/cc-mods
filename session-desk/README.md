@@ -62,7 +62,7 @@ mod 從計時器發的 Notion MCP 呼叫會被 Claude Code 的 auto mode 分類�
 
 複製該 view 的網址（帶 `?v=`），填進 `/plugin` → session-desk → 「Notion view 連結」。留空會用 Howard 的 view，別人用會查到 Howard 的卡。
 
-同一頁再放一個 **Sprints (for Scrum)** 的連結資料庫、加一個 table view，篩選 `Sprint status` 是 Last／Current／Next，網址填進「Sprints view 連結」。mod 靠它知道哪個是本 Sprint，一天查一次；不建的話用 Howard 的，通常一樣。
+同一頁再放一個 **Sprints (for Scrum)** 的連結資料庫、加一個 table view，篩選 `Sprint status` 是 Last／Current／Next，網址填進「Sprints view 連結」。mod 靠它知道哪個是本 Sprint，一週查一次（Sprint 是雙週制）；不建的話用 Howard 的，通常一樣。
 
 為什麼都用 view 而不是讀頁面：Notion plugin 的 `notion-fetch` 只有「整頁」一種讀法，Sprint 頁掛著幾百張 Tasks、Story 頁可能是整本 bug 日誌，動輒上百 KB 還可能超過 MCP 回傳上限。view 查詢與 search 只回需要的欄位。
 
@@ -187,7 +187,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 
 - **session**：`~/.claude/sessions/<pid>.json`（Claude Code 自己寫的：name、status、waitingFor、cwd、jobId、parkedJobId），每 5 秒讀一次；`ps` 判活；`it2 session list` 把 tty 對到 iTerm2 分頁。
 - **卡片**：Notion plugin MCP 的 `notion-query-data-sources`（view 模式），結果存 plugin store 4 分鐘、所有 session 共用；每 5 分鐘重查。
-- **Sprint**：同一個工具查「Desk · Sprints」view（Last／Current／Next 三筆），24 小時一次。
+- **Sprint**：同一個工具查「Desk · Sprints」view（Last／Current／Next 三筆）。回傳約 56 KB（view 模式一律帶所有欄位，含每個 Sprint 掛的 Tasks，`SHOW` 縮欄位也沒用），而且結果會以背景 task 通知進到發出查詢的 session 對話裡、占 context，所以 7 天一次（Sprint 是雙週制，一週足夠）、`r` 強制重整也要距上次超過 1 小時才重查，Sprint 剛換想立刻切就按 `r`。**刻意不用 SQL／rows 模式**：非 Business 方案那是整個工作區共用的額度，mod 不該吃團隊的。
 - **Story 名稱**：`notion-search` 限定 Story 資料庫一次拿回所有標題，24 小時一次；search 沒命中的才 `notion-fetch` 那一頁，整頁太大讀不完的記 24 小時不再試。
 - **綁定、別名**：plugin store（`$.store`），跨 session 共用，不隨 session 結束消失。
 
