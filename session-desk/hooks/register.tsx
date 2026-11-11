@@ -268,12 +268,15 @@ async function refreshCards($: Engine, force = false): Promise<void> {
   try {
     const list: Card[] = []
     let cursor: string | undefined
-    for (let page = 0; page < 5; page += 1) {
+    // 每張卡約 2.5 KB（看板欄位很多），一頁 10 張才不會撞到 MCP 回傳上限；撞到也有 resultText 讀檔救回。
+    for (let page = 0; page < 20; page += 1) {
       const res = await notion($, 'notion-query-data-sources', {
-        data: { mode: 'view', view_url: VIEW_URL, page_size: 100, ...(cursor ? { start_cursor: cursor } : {}) },
+        data: { mode: 'view', view_url: VIEW_URL, page_size: 10, ...(cursor ? { start_cursor: cursor } : {}) },
       })
       if (res.isError) throw new Error(firstText(res.content) || 'Notion 查詢失敗')
-      const parsed = JSON.parse(firstText(res.content)) as { results?: unknown; has_more?: boolean; next_cursor?: string }
+      const text = await resultText($, res)
+      if (OVERSIZED.test(text)) throw new Error('Notion 回傳太大，引擎沒給內容，也讀不到它存的檔案')
+      const parsed = JSON.parse(text) as { results?: unknown; has_more?: boolean; next_cursor?: string }
       for (const row of Array.isArray(parsed.results) ? (parsed.results as Record<string, unknown>[]) : []) {
         const card = toCard(row)
         if (card) list.push(card)
@@ -338,7 +341,7 @@ async function resolveSprint($: Engine, list: Card[], force = false): Promise<vo
   if (stale || Object.keys(known).length === 0) {
     try {
       const res = await notion($, 'notion-query-data-sources', { data: { mode: 'view', view_url: SPRINTS_VIEW, page_size: 10 } })
-      const text = firstText(res.content)
+      const text = await resultText($, res)
       if (!res.isError && !OVERSIZED.test(text)) {
         const parsed = JSON.parse(text) as { results?: Record<string, unknown>[] }
         const fresh: Record<string, SprintInfo> = {}
@@ -397,7 +400,7 @@ async function resolveStories($: Engine, list: Card[], force = false): Promise<v
     try {
       const res = await notion($, 'notion-search', { query: 'Story', data_source_url: STORIES_DS, page_size: 50, max_highlight_length: 0 })
       if (!res.isError) {
-        const parsed = JSON.parse(firstText(res.content)) as { results?: { url?: string; title?: string }[] }
+        const parsed = JSON.parse(await resultText($, res)) as { results?: { url?: string; title?: string }[] }
         const titles = new Map<string, string>()
         for (const r of parsed.results ?? []) {
           const id = typeof r.url === 'string' ? notionId(r.url) : ''
@@ -420,7 +423,7 @@ async function resolveStories($: Engine, list: Card[], force = false): Promise<v
   for (const id of pending) {
     try {
       const res = await notion($, 'notion-fetch', { id })
-      const text = firstText(res.content)
+      const text = await resultText($, res)
       if (res.isError || OVERSIZED.test(text)) {
         known[id] = { name: '', at: now, unreadable: OVERSIZED.test(text) }
       } else {
@@ -488,6 +491,22 @@ async function notion($: Engine, tool: string, args: Record<string, unknown>) {
 
 function firstText(content: readonly { type: string; text?: string }[]): string {
   return content.find(c => c.type === 'text' && c.text)?.text ?? ''
+}
+
+/**
+ * MCP 結果太大時引擎不給內容，只給一段「exceeds maximum allowed tokens… Output has been saved to <檔案>」。
+ * 檔案是完整結果，直接讀回來當內容用；讀不到才維持原本的錯誤文字。
+ */
+async function resultText($: Engine, res: { content: readonly { type: string; text?: string }[] }): Promise<string> {
+  const text = firstText(res.content)
+  if (!OVERSIZED.test(text)) return text
+  const saved = /saved to (\/\S+?\.txt)/.exec(text)?.[1]
+  if (!saved) return text
+  try {
+    return await $.fs.read(saved)
+  } catch {
+    return text
+  }
 }
 
 const CARD_ORDER = ['PR Reviewing', 'In Development', 'In Progress', 'In Diversity Testing', 'PM Retest', 'Wait to Beta', 'Wait to Prod', 'Monitoring', 'Pending', 'Pending Assignment', 'In Design', 'Not started']

@@ -177,6 +177,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 | 紅字 `Your workspace has used up its Query Data Source allowance` | Notion 非 Business 方案的 rows／SQL 配額被吃光（約 60 分鐘重置）。本 mod 只用 view 模式，正常不會碰到；若你把 view 連結填成別的東西或同時有別的工具在查，等重置。 |
 | 紅字 `ECONNRESET`／逾時 | Notion MCP 連線抖動。mod 會自動重試三次、30 秒後再補查，期間顯示上一次的清單（後面會註明）。 |
 | 卡片區標題一直是「全部」、`c` 切不到本 Sprint | Sprints view 查不到（`notion-query-data-sources` 沒放行，或 view 連結填錯）。放行後 `r`。 |
+| notions 區紅字 `JSON Parse error: Unexpected identifier "Error"` | Notion 回傳超過 Claude Code 的 MCP 結果上限（約 25K token），引擎只給一段錯誤文字並把完整結果存成檔案。0.3.1 起一頁只抓 10 張、而且會自動把引擎存的檔案讀回來，不該再出現；看到就 `r` 重抓，還在就回報。 |
 | 組名停在 `Story xxxxxx` | `notion-search` 沒放行，且那頁大到讀不完（例如「[Support] 維運 / Bug issues」）；放行 search 後 `r`。 |
 | pane 開不出來 | 終端寬度不到 144 欄時不會自動開；打 `/desk` 可在 110 欄以上強制開。 |
 | session 列有 `⌀`、`j` 跳不過去 | 不是 iTerm2，或 `it2` 路徑不對（設定可改）。 |
