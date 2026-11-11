@@ -78,8 +78,8 @@ const bindings = atom({ plugin: 'session-desk', key: 'bindings' } as const, {} a
 const aliases = atom({ plugin: 'session-desk', key: 'aliases' } as const, {} as Aliases)
 const sel = atom(
   { plugin: 'session-desk', key: 'sel' } as const,
-  { picking: false, naming: false, sending: false, showAll: false, pickingSprint: false, note: '', noteAt: 0, draft: '', sendSeq: 0 } as Selection,
-  { shape: 'sel-6' },
+  { picking: false, naming: false, sending: false, showAll: false, pickingSprint: false, note: '', noteAt: 0, draft: '', sendSeq: 0, groupToggles: {} } as Selection,
+  { shape: 'sel-7' },
 )
 const tick = atom({ plugin: 'session-desk', key: 'tick' } as const, 0)
 
@@ -1034,18 +1034,37 @@ export const register: Register = (on, options) => {
         )}
         {m.error && row(<Text color={pal.waiting}>{fit(m.error, inner)}</Text>)}
         {shown.length === 0 && !m.loading && empty(m.error ? '載入失敗，按 r 重試。' : '沒有指派給你、還沒結案的卡。')}
-        {groupByStory(shown, st).map(group => (
-          <Box flexDirection="column">
-            {row(
-              <Text>
-                <Text color={pal.accent}>▍</Text>
-                <Text bold {...textProps}>{fit(group.name, inner - 10)}</Text>
-                <Text {...dimProps}> · {group.cards.length}</Text>
-              </Text>,
-            )}
-            {group.cards.map(c => renderCard(c))}
-          </Box>
-        ))}
+        {(() => {
+          // 卡太多會把操作列擠出畫面：算一下整棵樹要幾列，放不下就把 Story 群組收起來，只展開選到的那組（或第一組）。
+          const groups = groupByStory(shown, st)
+          const cardRows = (c: Card) => (ownerByCard.get(c.url) ? 2 : 1)
+          const allCardRows = groups.reduce((n, g) => n + 1 + g.cards.reduce((k, c) => k + cardRows(c), 0), 0)
+          const otherRows =
+            2 + list.length + (selected ? 1 + (selected.parked ? 1 : 0) : 0) +
+            (closed.length > 0 ? 2 + closed.length : 0) +
+            2 + (s.showAll ? 6 : 4) + 1 +
+            (s.naming || s.picking || s.pickingSprint ? 6 : 0)
+          const roomRows = e.props.scroll.bodyRows > 0 ? e.props.scroll.bodyRows : Number.POSITIVE_INFINITY
+          const compact = allCardRows + otherRows > roomRows
+          const selGroup = groups.find(g => g.cards.some(c => c.url === s.cardUrl))?.id ?? groups[0]?.id
+          const toggles = s.groupToggles ?? {}
+          const isOpen = (id: string) => (id in toggles ? toggles[id]! : !compact || id === selGroup)
+          return groups.map(group => {
+            const open = isOpen(group.id)
+            return (
+              <Box flexDirection="column">
+                {row(
+                  <Button key={`g:${group.id}`} plain onPress={() => void update($, sel, x => ({ ...x, groupToggles: { ...(x.groupToggles ?? {}), [group.id]: !open } }))}>
+                    <Text color={pal.accent}>{open ? '▍' : '▸'}</Text>
+                    <Text bold {...textProps}>{fit(group.name, inner - 14)}</Text>
+                    <Text {...dimProps}> · {group.cards.length}{open ? '' : '　收合'}</Text>
+                  </Button>,
+                )}
+                {open && group.cards.map(c => renderCard(c))}
+              </Box>
+            )
+          })
+        })()}
         {footer()}
 
         {Select && s.pickingSprint && (

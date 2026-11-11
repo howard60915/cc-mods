@@ -137,6 +137,7 @@ waiting 的排最上面，再 busy、再 idle。名字的優先序：Desk 別名
 上圖：卡片依 Story 分組；每列是卡號、狀態短寫、優先度、標題；`⚑待指派` 是 Assign 空著、只有 owner 列到你的卡；卡列下的 `⌁ …` 是綁著它的 session（「（已關閉）」表示那個 session 已經關了）。
 
 - notions 區依 **Story** 分組，組名是 Story 頁標題；沒 Story 的在最後一組。第一次載入組名可能短暫是 `Story xxxxxx`，標題抓回來就換掉。
+- 卡太多、整個 pane 放不下時（pane 高度由終端決定，非全螢幕時只有上方三分之一），Story 群組會自動收合，只展開選到的那組（沒選就第一組），組名後面標「收合」，操作列永遠留在畫面上。方向鍵走到組名按 Enter 可以手動展開／收合，放得下時全部展開。
 - 列：`卡號 狀態短寫 優先度 標題`。狀態短寫：`todo` Not started、`pend` Pending、`p-asg` Pending Assignment、`dev` In Development、`pr` PR Reviewing、`beta` Wait to Beta、`prod` Wait to Prod、`retst` PM Retest。`⚑待指派` 表示 Assign 是空的、只有 owner 列到你。
 - 選到卡（Enter 或點）後：**`o`** 在 Notion 桌面 app 開（`notion://`，app 不在就退回瀏覽器）、**`t`** 改 Status（跳選單，選完寫回 Notion；需要在 `permissions.allow` 放行 `mcp__plugin_Notion_notion__notion-update-page`，沒放行會被 auto mode 擋下）、**`n`** 在 iTerm2 開新分頁、同目錄起 `claude`，開場 prompt 就是這張卡。
 - 範圍：**`c`** 在「本 Sprint」與「全部」間切換；**`v`** 跳選單挑特定 Sprint（名單是你卡上出現過的 Sprint）。**`r`** 強制重抓卡片與 Sprint／Story 標題。

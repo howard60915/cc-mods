@@ -103,6 +103,8 @@ export type Selection = {
   draft: string
   /** 每開一次對話框加一，讓輸入框重新掛載吃到新的 draft。 */
   sendSeq: number
+  /** Story 群組手動展開／收合的紀錄（group id → 是否展開）；沒記的照自動規則。 */
+  groupToggles: Record<string, boolean>
 }
 
 declare module 'claude-code' {
